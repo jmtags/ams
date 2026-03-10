@@ -1,11 +1,22 @@
-import { useState, useEffect, FormEvent } from 'react';
-import { Plus, Search, Pencil, Trash2 } from 'lucide-react';
-import { AdminLayout } from '../layouts/admin-layout';
-import { Button } from '../components/ui/button';
-import { Input } from '../components/ui/input';
-import { Select } from '../components/ui/select';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
+import { useState, useEffect, FormEvent } from "react";
+import { Plus, Search, Pencil, Trash2 } from "lucide-react";
+import { AdminLayout } from "../layouts/admin-layout";
+import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
+import { Select } from "../components/ui/select";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+} from "../components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "../components/ui/table";
 import {
   Dialog,
   DialogContent,
@@ -14,141 +25,234 @@ import {
   DialogDescription,
   DialogBody,
   DialogFooter,
-} from '../components/ui/dialog';
-import { userService } from '../services/user.service';
-import { departmentService } from '../services/department.service';
-import type { User, Department } from '../lib/types';
-import { formatDate } from '../lib/utils';
+} from "../components/ui/dialog";
+import { userService } from "../services/user.service";
+import { departmentService } from "../services/department.service";
+import { shiftService } from "../services/shift.service";
+import type { User, Department } from "../lib/types";
+
+type Shift = {
+  id: string;
+  name: string;
+  location_id: string | null;
+  start_time: string;
+  end_time: string;
+  grace_minutes: number;
+  overtime_after_minutes: number;
+  is_active: boolean;
+  created_at: string;
+  locations?: {
+    id: string;
+    name: string;
+  } | null;
+};
+
+type UserFormData = {
+  name: string;
+  email: string;
+  password: string;
+  department: string;
+  role: "user" | "admin";
+  shift_id: string;
+  sss: string;
+  pagibig: string;
+  philhealth: string;
+  atm_number: string;
+};
+
+const initialFormData: UserFormData = {
+  name: "",
+  email: "",
+  password: "",
+  department: "",
+  role: "user",
+  shift_id: "",
+  sss: "",
+  pagibig: "",
+  philhealth: "",
+  atm_number: "",
+};
 
 export function UserManagementPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
+  const [shifts, setShifts] = useState<Shift[]>([]);
   const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [deletingUser, setDeletingUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [isPageLoading, setIsPageLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    password:'',
-    department: '',
-    role: 'user' as 'user' | 'admin',
-    sss: '',
-    pagibig: '',
-    philhealth: '',
-    atm_number: '',
-  });
+  const [formData, setFormData] = useState<UserFormData>(initialFormData);
 
   useEffect(() => {
     loadData();
   }, []);
 
   useEffect(() => {
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      setFilteredUsers(
-        users.filter(
-          (user) =>
-            user.name.toLowerCase().includes(query) ||
-            user.email.toLowerCase().includes(query) ||
-            user.department.toLowerCase().includes(query)
-        )
-      );
-    } else {
+    const query = searchQuery.trim().toLowerCase();
+
+    if (!query) {
       setFilteredUsers(users);
+      return;
     }
+
+    setFilteredUsers(
+      users.filter((user) => {
+        const name = user.name?.toLowerCase() ?? "";
+        const email = user.email?.toLowerCase() ?? "";
+        const department = user.department?.toLowerCase() ?? "";
+        const role = user.role?.toLowerCase() ?? "";
+        const shiftName = (user as any).shift_name?.toLowerCase?.() ?? "";
+
+        return (
+          name.includes(query) ||
+          email.includes(query) ||
+          department.includes(query) ||
+          role.includes(query) ||
+          shiftName.includes(query)
+        );
+      })
+    );
   }, [searchQuery, users]);
 
   const loadData = async () => {
     try {
-      const [usersData, departmentsData] = await Promise.all([
+      setIsPageLoading(true);
+
+      const [usersData, departmentsData, shiftsData] = await Promise.all([
         userService.getUsers(),
         departmentService.getAllDepartments(),
+        shiftService.getShifts(),
       ]);
-      setUsers(usersData);
-      setDepartments(departmentsData);
+
+      setUsers(usersData ?? []);
+      setDepartments(departmentsData ?? []);
+      setShifts((shiftsData ?? []).filter((shift) => shift.is_active));
     } catch (error) {
-      console.error('Error loading data:', error);
+      console.error("Error loading data:", error);
+      setError(error instanceof Error ? error.message : "Failed to load data");
+    } finally {
+      setIsPageLoading(false);
     }
   };
 
+  const resetForm = () => {
+    setFormData(initialFormData);
+  };
+
   const handleOpenDialog = (user?: User) => {
+    setError("");
+
     if (user) {
       setEditingUser(user);
       setFormData({
-        name: user.name,
-        email: user.email,
-        department: user.department,
-        role: user.role,
-        sss: user.sss,
-        pagibig: user.pagibig,
-        philhealth: user.philhealth,
-        atm_number: user.atm_number,
+        name: user.name ?? "",
+        email: user.email ?? "",
+        password: "",
+        department: user.department ?? "",
+        role: user.role ?? "user",
+        shift_id: (user as any).shift_id ?? "",
+        sss: user.sss ?? "",
+        pagibig: user.pagibig ?? "",
+        philhealth: user.philhealth ?? "",
+        atm_number: user.atm_number ?? "",
       });
     } else {
       setEditingUser(null);
-      setFormData({
-        name: '',
-        email: '',
-        department: '',
-        role: 'user',
-        sss: '',
-        pagibig: '',
-        philhealth: '',
-        atm_number: '',
-      });
+      resetForm();
     }
-    setError('');
+
     setIsDialogOpen(true);
   };
 
   const handleCloseDialog = () => {
+    if (isLoading) return;
+
     setIsDialogOpen(false);
     setEditingUser(null);
-    setError('');
+    setError("");
+    resetForm();
   };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    setError('');
+    setError("");
 
     try {
       if (editingUser) {
-        await userService.updateUserByAdmin(editingUser.id, formData);
+        await userService.updateUserByAdmin({
+          id: editingUser.id,
+          name: formData.name.trim(),
+          email: formData.email.trim(),
+          department: formData.department || null,
+          role: formData.role,
+          shift_id: formData.shift_id || null,
+          sss: formData.sss || null,
+          pagibig: formData.pagibig || null,
+          philhealth: formData.philhealth || null,
+          atm_number: formData.atm_number || null,
+          password: formData.password.trim() ? formData.password : undefined,
+        });
       } else {
-        await userService.createUserByAdmin(formData);
+        if (!formData.password.trim()) {
+          throw new Error("Password is required when creating a new user.");
+        }
+
+        await userService.createUserByAdmin({
+          name: formData.name.trim(),
+          email: formData.email.trim(),
+          password: formData.password,
+          department: formData.department || null,
+          role: formData.role,
+          shift_id: formData.shift_id || null,
+          sss: formData.sss || null,
+          pagibig: formData.pagibig || null,
+          philhealth: formData.philhealth || null,
+          atm_number: formData.atm_number || null,
+        });
       }
+
       await loadData();
       handleCloseDialog();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save user');
+      console.error(err);
+      setError(err instanceof Error ? err.message : "Failed to save user");
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleDeleteClick = (user: User) => {
+    setError("");
     setDeletingUser(user);
     setIsDeleteDialogOpen(true);
+  };
+
+  const handleDeleteClose = () => {
+    if (isLoading) return;
+    setIsDeleteDialogOpen(false);
+    setDeletingUser(null);
   };
 
   const handleDeleteConfirm = async () => {
     if (!deletingUser) return;
 
     setIsLoading(true);
+    setError("");
+
     try {
       await userService.deleteUser(deletingUser.id);
       await loadData();
-      setIsDeleteDialogOpen(false);
-      setDeletingUser(null);
+      handleDeleteClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete user');
+      console.error(err);
+      setError(err instanceof Error ? err.message : "Failed to delete user");
     } finally {
       setIsLoading(false);
     }
@@ -160,21 +264,33 @@ export function UserManagementPage() {
         <div className="flex justify-between items-start">
           <div>
             <h1 className="text-neutral-900 mb-1">User Management</h1>
-            <p className="text-neutral-600">Manage employee accounts and information</p>
+            <p className="text-neutral-600">
+              Manage employee accounts, information, and assigned shifts
+            </p>
           </div>
-          <Button onClick={() => handleOpenDialog()} className="flex items-center gap-2">
+
+          <Button
+            onClick={() => handleOpenDialog()}
+            className="flex items-center gap-2"
+          >
             <Plus className="w-4 h-4" />
             Add User
           </Button>
         </div>
 
+        {error && !isDialogOpen && !isDeleteDialogOpen && (
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+            {error}
+          </div>
+        )}
+
         <Card>
           <CardHeader>
             <div className="flex items-center gap-4">
               <div className="flex-1 relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-neutral-400" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
                 <Input
-                  placeholder="Search by name, email, or department..."
+                  placeholder="Search by name, email, department, role, or shift..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-10"
@@ -182,6 +298,7 @@ export function UserManagementPage() {
               </div>
             </div>
           </CardHeader>
+
           <CardContent>
             <Table>
               <TableHeader>
@@ -189,6 +306,8 @@ export function UserManagementPage() {
                   <TableHead>Name</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Department</TableHead>
+                  <TableHead>Role</TableHead>
+                  <TableHead>Shift</TableHead>
                   <TableHead>SSS</TableHead>
                   <TableHead>Pag-IBIG</TableHead>
                   <TableHead>PhilHealth</TableHead>
@@ -196,23 +315,34 @@ export function UserManagementPage() {
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
+
               <TableBody>
-                {filteredUsers.length === 0 ? (
+                {isPageLoading ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center text-neutral-500 py-8">
-                      {searchQuery ? 'No users found matching your search' : 'No users found'}
+                    <TableCell colSpan={10} className="text-center text-neutral-500 py-8">
+                      Loading users...
+                    </TableCell>
+                  </TableRow>
+                ) : filteredUsers.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={10} className="text-center text-neutral-500 py-8">
+                      {searchQuery
+                        ? "No users found matching your search"
+                        : "No users found"}
                     </TableCell>
                   </TableRow>
                 ) : (
                   filteredUsers.map((user) => (
                     <TableRow key={user.id}>
-                      <TableCell>{user.name}</TableCell>
-                      <TableCell>{user.email}</TableCell>
-                      <TableCell>{user.department}</TableCell>
-                      <TableCell>{user.sss}</TableCell>
-                      <TableCell>{user.pagibig}</TableCell>
-                      <TableCell>{user.philhealth}</TableCell>
-                      <TableCell>{user.atm_number}</TableCell>
+                      <TableCell>{user.name || "-"}</TableCell>
+                      <TableCell>{user.email || "-"}</TableCell>
+                      <TableCell>{user.department || "-"}</TableCell>
+                      <TableCell className="capitalize">{user.role || "-"}</TableCell>
+                      <TableCell>{(user as any).shift_name || "-"}</TableCell>
+                      <TableCell>{user.sss || "-"}</TableCell>
+                      <TableCell>{user.pagibig || "-"}</TableCell>
+                      <TableCell>{user.philhealth || "-"}</TableCell>
+                      <TableCell>{user.atm_number || "-"}</TableCell>
                       <TableCell>
                         <div className="flex justify-end gap-2">
                           <Button
@@ -222,6 +352,7 @@ export function UserManagementPage() {
                           >
                             <Pencil className="w-4 h-4" />
                           </Button>
+
                           <Button
                             variant="ghost"
                             size="sm"
@@ -240,14 +371,17 @@ export function UserManagementPage() {
         </Card>
       </div>
 
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+      <Dialog open={isDialogOpen} onOpenChange={(open) => !open && handleCloseDialog()}>
         <DialogContent onClose={handleCloseDialog}>
           <DialogHeader>
-            <DialogTitle>{editingUser ? 'Edit User' : 'Add New User'}</DialogTitle>
+            <DialogTitle>{editingUser ? "Edit User" : "Add New User"}</DialogTitle>
             <DialogDescription>
-              {editingUser ? 'Update user information' : 'Create a new user account'}
+              {editingUser
+                ? "Update user profile details and assigned shift. Leave password blank if you do not want to change it."
+                : "Create a new user account and assign a shift."}
             </DialogDescription>
           </DialogHeader>
+
           <form onSubmit={handleSubmit}>
             <DialogBody>
               {error && (
@@ -255,35 +389,52 @@ export function UserManagementPage() {
                   {error}
                 </div>
               )}
+
               <div className="space-y-4">
                 <Input
                   label="Full Name"
                   value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  onChange={(e) =>
+                    setFormData((prev) => ({ ...prev, name: e.target.value }))
+                  }
                   required
                   disabled={isLoading}
                 />
+
                 <Input
                   label="Email"
                   type="email"
                   value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  onChange={(e) =>
+                    setFormData((prev) => ({ ...prev, email: e.target.value }))
+                  }
                   required
                   disabled={isLoading}
                 />
+
                 <Input
-                  label="Password"
+                  label={editingUser ? "New Password (Optional)" : "Password"}
                   type="password"
                   value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  required
+                  onChange={(e) =>
+                    setFormData((prev) => ({ ...prev, password: e.target.value }))
+                  }
+                  required={!editingUser}
                   disabled={isLoading}
+                  placeholder={
+                    editingUser ? "Leave blank to keep current password" : ""
+                  }
                 />
+
                 <Select
                   label="Department"
                   value={formData.department}
-                  onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-                  required
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      department: e.target.value,
+                    }))
+                  }
                   disabled={isLoading}
                 >
                   <option value="">Select Department</option>
@@ -293,72 +444,146 @@ export function UserManagementPage() {
                     </option>
                   ))}
                 </Select>
+
                 <Select
                   label="Role"
                   value={formData.role}
-                  onChange={(e) => setFormData({ ...formData, role: e.target.value as 'user' | 'admin' })}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      role: e.target.value as "user" | "admin",
+                    }))
+                  }
                   required
                   disabled={isLoading}
                 >
                   <option value="user">User</option>
                   <option value="admin">Admin</option>
                 </Select>
+
+                <Select
+                  label="Assigned Shift"
+                  value={formData.shift_id}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      shift_id: e.target.value,
+                    }))
+                  }
+                  disabled={isLoading}
+                >
+                  <option value="">Select Shift</option>
+                  {shifts.map((shift) => (
+                    <option key={shift.id} value={shift.id}>
+                      {shift.name}
+                      {shift.locations?.name ? ` - ${shift.locations.name}` : ""}
+                      {" | "}
+                      {shift.start_time?.slice(0, 5)} - {shift.end_time?.slice(0, 5)}
+                    </option>
+                  ))}
+                </Select>
+
                 <Input
                   label="SSS Number"
                   value={formData.sss}
-                  onChange={(e) => setFormData({ ...formData, sss: e.target.value })}
+                  onChange={(e) =>
+                    setFormData((prev) => ({ ...prev, sss: e.target.value }))
+                  }
                   disabled={isLoading}
                 />
+
                 <Input
                   label="Pag-IBIG Number"
                   value={formData.pagibig}
-                  onChange={(e) => setFormData({ ...formData, pagibig: e.target.value })}
+                  onChange={(e) =>
+                    setFormData((prev) => ({ ...prev, pagibig: e.target.value }))
+                  }
                   disabled={isLoading}
                 />
+
                 <Input
                   label="PhilHealth Number"
                   value={formData.philhealth}
-                  onChange={(e) => setFormData({ ...formData, philhealth: e.target.value })}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      philhealth: e.target.value,
+                    }))
+                  }
                   disabled={isLoading}
                 />
+
                 <Input
                   label="ATM Number"
                   value={formData.atm_number}
-                  onChange={(e) => setFormData({ ...formData, atm_number: e.target.value })}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      atm_number: e.target.value,
+                    }))
+                  }
                   disabled={isLoading}
                 />
               </div>
             </DialogBody>
+
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={handleCloseDialog} disabled={isLoading}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleCloseDialog}
+                disabled={isLoading}
+              >
                 Cancel
               </Button>
+
               <Button type="submit" disabled={isLoading}>
-                {isLoading ? 'Saving...' : editingUser ? 'Update User' : 'Create User'}
+                {isLoading
+                  ? "Saving..."
+                  : editingUser
+                  ? "Update User"
+                  : "Create User"}
               </Button>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <DialogContent onClose={() => setIsDeleteDialogOpen(false)}>
+      <Dialog
+        open={isDeleteDialogOpen}
+        onOpenChange={(open) => !open && handleDeleteClose()}
+      >
+        <DialogContent onClose={handleDeleteClose}>
           <DialogHeader>
             <DialogTitle>Delete User</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete {deletingUser?.name}? This action cannot be undone.
+              Are you sure you want to delete{" "}
+              <span className="font-medium">{deletingUser?.name}</span>? This action
+              cannot be undone.
             </DialogDescription>
           </DialogHeader>
+
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+              {error}
+            </div>
+          )}
+
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() => setIsDeleteDialogOpen(false)}
+              onClick={handleDeleteClose}
               disabled={isLoading}
             >
               Cancel
             </Button>
-            <Button variant="danger" onClick={handleDeleteConfirm} disabled={isLoading}>
-              {isLoading ? 'Deleting...' : 'Delete User'}
+
+            <Button
+              variant="danger"
+              onClick={handleDeleteConfirm}
+              disabled={isLoading}
+            >
+              {isLoading ? "Deleting..." : "Delete User"}
             </Button>
           </DialogFooter>
         </DialogContent>

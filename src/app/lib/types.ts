@@ -1,16 +1,17 @@
-export interface User {
-  id: string;
-  name: string;
-  email: string;
-  department: string;
-  role: 'user' | 'admin';
-  sss: string;
-  pagibig: string;
-  philhealth: string;
-  atmNumber: string;
-  createdAt: string;
-}
 
+export type User = {
+  id: string;
+  name: string | null;
+  email: string | null;
+  department: string | null;
+  role: "user" | "admin" | null;
+  shift_id?: string | null;
+  shift_name?: string | null;
+  sss?: string | null;
+  pagibig?: string | null;
+  philhealth?: string | null;
+  atm_number?: string | null;
+};
 export interface AttendanceRecord {
   id: string;
   userId: string;

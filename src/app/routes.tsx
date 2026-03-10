@@ -6,6 +6,7 @@ import { AdminDashboardPage } from './pages/admin-dashboard';
 import { UserManagementPage } from './pages/user-management';
 import { DepartmentManagementPage } from './pages/department-management';
 import { LocationManagementPage } from './pages/location-management';
+import ShiftManagementPage from './pages/ShiftManagementPage';
 import { ProtectedRoute } from './components/protected-route';
 
 export const router = createBrowserRouter([
@@ -62,6 +63,14 @@ export const router = createBrowserRouter([
     element: (
       <ProtectedRoute requireAdmin>
         <LocationManagementPage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: '/admin/shifts',
+    element: (
+      <ProtectedRoute requireAdmin>
+        <ShiftManagementPage />
       </ProtectedRoute>
     ),
   },
