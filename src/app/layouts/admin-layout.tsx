@@ -6,6 +6,7 @@ import {
   Building2,
   MapPin,
   Clock3,
+  CalendarDays,
   LogOut,
   User,
 } from 'lucide-react';
@@ -23,6 +24,7 @@ const navigationItems = [
   { name: 'Departments', href: '/admin/departments', icon: Building2 },
   { name: 'Locations', href: '/admin/locations', icon: MapPin },
   { name: 'Shift Management', href: '/admin/shifts', icon: Clock3 },
+  { name: 'Holidays', href: '/admin/holidays', icon: CalendarDays },
 ];
 
 export function AdminLayout({ children }: AdminLayoutProps) {

@@ -5,6 +5,7 @@ import {
   Location,
   ShiftFormData,
 } from "../services/shift.service";
+import { AdminLayout } from "../layouts/admin-layout";
 
 const initialForm: ShiftFormData = {
   name: "",
@@ -17,6 +18,7 @@ const initialForm: ShiftFormData = {
 };
 
 export default function ShiftManagementPage() {
+  
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
   const [loading, setLoading] = useState(false);
@@ -192,6 +194,8 @@ export default function ShiftManagementPage() {
   }
 
   return (
+        <AdminLayout>
+ 
     <div className="p-6 max-w-7xl mx-auto">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
         <div>
@@ -471,5 +475,7 @@ export default function ShiftManagementPage() {
         </div>
       )}
     </div>
+ 
+   </AdminLayout>
   );
 }

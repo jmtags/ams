@@ -16,6 +16,9 @@ const mapAttendance = (record: any) => ({
   isLate: record.is_late,
   isOvertime: record.is_overtime,
   isAbsent: record.is_absent,
+  isHoliday: record.is_holiday,
+  isRestDay: record.is_restday,
+  holidayName: record.holiday_name,
   remarks: record.remarks,
   createdAt: record.created_at,
 });
@@ -29,20 +32,96 @@ const getPHDate = () => {
   }).format(new Date());
 };
 
-const getPHNow = () => {
-  return new Date();
+const getPHDayOfWeek = (date: string) => {
+  const manilaDate = new Date(`${date}T12:00:00+08:00`);
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Manila",
+    weekday: "long",
+  }).format(manilaDate);
 };
 
-// Converts YYYY-MM-DD + HH:mm:ss to ISO-like Date object in Asia/Manila context
-// Since JS Date uses local/browser timezone, safest is to keep all DB columns as timestamptz
-// and construct timestamps carefully.
+const getPHNow = () => new Date();
+
 const buildPHDateTimeISOString = (date: string, time: string) => {
-  // Example output: 2026-03-08T08:00:00+08:00
   return `${date}T${time}+08:00`;
 };
 
 const diffMinutes = (later: Date, earlier: Date) => {
   return Math.max(0, Math.floor((later.getTime() - earlier.getTime()) / 60000));
+};
+
+const buildRemarks = ({
+  isHoliday,
+  isRestDay,
+  worked,
+  holidayName,
+  isLate = false,
+  isOvertime = false,
+}: {
+  isHoliday: boolean;
+  isRestDay: boolean;
+  worked: boolean;
+  holidayName?: string | null;
+  isLate?: boolean;
+  isOvertime?: boolean;
+}) => {
+  const parts: string[] = [];
+
+  if (isHoliday) {
+    parts.push(
+      worked
+        ? holidayName
+          ? `Worked on Holiday (${holidayName})`
+          : "Worked on Holiday"
+        : holidayName
+        ? `Holiday (${holidayName})`
+        : "Holiday"
+    );
+  }
+
+  if (isRestDay) {
+    parts.push(worked ? "Worked on Rest Day" : "Rest Day");
+  }
+
+  if (isLate && !isHoliday && !isRestDay) {
+    parts.push("Late");
+  }
+
+  if (isOvertime) {
+    parts.push("Overtime");
+  }
+
+  return parts.join(", ");
+};
+
+const resolveAttendanceStatus = ({
+  worked,
+  isHoliday,
+  isRestDay,
+  isLate = false,
+  isOvertime = false,
+}: {
+  worked: boolean;
+  isHoliday: boolean;
+  isRestDay: boolean;
+  isLate?: boolean;
+  isOvertime?: boolean;
+}) => {
+  if (!worked) {
+    if (isHoliday && isRestDay) return "holiday_restday";
+    if (isHoliday) return "holiday";
+    if (isRestDay) return "restday";
+    return "absent";
+  }
+
+  if (isHoliday && isRestDay) return "worked_holiday_restday";
+  if (isHoliday) return "worked_holiday";
+  if (isRestDay) return "worked_restday";
+  if (isLate && isOvertime) return "late_overtime";
+  if (isLate) return "late";
+  if (isOvertime) return "overtime";
+
+  return "present";
 };
 
 async function getUserShift(userId: string) {
@@ -53,6 +132,7 @@ async function getUserShift(userId: string) {
     .single();
 
   if (userError) throw userError;
+
   if (!user?.shift_id) {
     throw new Error("User has no assigned shift.");
   }
@@ -69,12 +149,81 @@ async function getUserShift(userId: string) {
   return shift;
 }
 
+async function getHolidayForDate(date: string, locationId: string | null) {
+  let query = supabase
+    .from("holidays")
+    .select("*")
+    .eq("holiday_date", date);
+
+  if (locationId) {
+    query = query.or(`location_id.is.null,location_id.eq.${locationId}`);
+  } else {
+    query = query.is("location_id", null);
+  }
+
+  const { data, error } = await query.order("created_at", { ascending: false });
+
+  if (error) throw error;
+
+  return data?.[0] ?? null;
+}
+
+async function isUserRestDayForDate(userId: string, date: string) {
+  const dayOfWeek = getPHDayOfWeek(date);
+
+  const { data, error } = await supabase
+    .from("user_rest_days")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("day_of_week", dayOfWeek)
+    .lte("effective_from", date)
+    .or(`effective_to.is.null,effective_to.gte.${date}`);
+
+  if (error) throw error;
+
+  return (data?.length ?? 0) > 0;
+}
+
+async function getDayContext(
+  userId: string,
+  date: string,
+  locationId: string | null
+) {
+  const [holiday, isRestDay] = await Promise.all([
+    getHolidayForDate(date, locationId),
+    isUserRestDayForDate(userId, date),
+  ]);
+
+  return {
+    isHoliday: !!holiday,
+    holidayName: holiday?.name ?? null,
+    holidayType: holiday?.type ?? null,
+    isRestDay,
+  };
+}
+
+function getShiftSchedule(date: string, shift: any) {
+  const scheduledStartISO = buildPHDateTimeISOString(date, shift.start_time);
+  const scheduledEndISO = buildPHDateTimeISOString(date, shift.end_time);
+
+  const scheduledStart = new Date(scheduledStartISO);
+  let scheduledEnd = new Date(scheduledEndISO);
+
+  if (scheduledEnd <= scheduledStart) {
+    scheduledEnd = new Date(scheduledEnd.getTime() + 24 * 60 * 60 * 1000);
+  }
+
+  return {
+    scheduledStart,
+    scheduledEnd,
+  };
+}
+
 export const attendanceService = {
   async clockIn(userId: string, locationId: string) {
     const today = getPHDate();
     const now = getPHNow();
 
-    // Prevent duplicate clock-in for the day
     const { data: existing, error: existingError } = await supabase
       .from("attendance")
       .select("*")
@@ -83,29 +232,68 @@ export const attendanceService = {
       .maybeSingle();
 
     if (existingError) throw existingError;
-    if (existing) {
-      throw new Error("You already have an attendance record for today.");
-    }
 
     const shift = await getUserShift(userId);
-
-    const scheduledStartISO = buildPHDateTimeISOString(today, shift.start_time);
-    const scheduledEndISO = buildPHDateTimeISOString(today, shift.end_time);
-
-    const scheduledStart = new Date(scheduledStartISO);
-    let scheduledEnd = new Date(scheduledEndISO);
-
-    // Handle overnight shifts like 22:00 to 06:00
-    if (scheduledEnd <= scheduledStart) {
-      scheduledEnd = new Date(scheduledEnd.getTime() + 24 * 60 * 60 * 1000);
-    }
+    const { scheduledStart, scheduledEnd } = getShiftSchedule(today, shift);
+    const dayContext = await getDayContext(userId, today, shift.location_id);
 
     const graceLimit = new Date(
       scheduledStart.getTime() + (shift.grace_minutes || 0) * 60000
     );
 
-    const isLate = now > graceLimit;
+    const shouldCheckLate = !dayContext.isHoliday && !dayContext.isRestDay;
+    const isLate = shouldCheckLate ? now > graceLimit : false;
     const minutesLate = isLate ? diffMinutes(now, scheduledStart) : 0;
+
+    const status = resolveAttendanceStatus({
+      worked: true,
+      isHoliday: dayContext.isHoliday,
+      isRestDay: dayContext.isRestDay,
+      isLate,
+      isOvertime: false,
+    });
+
+    const remarks = buildRemarks({
+      isHoliday: dayContext.isHoliday,
+      isRestDay: dayContext.isRestDay,
+      worked: true,
+      holidayName: dayContext.holidayName,
+      isLate,
+      isOvertime: false,
+    });
+
+    if (existing) {
+      if (existing.clock_in) {
+        throw new Error("You already have an attendance record for today.");
+      }
+
+      const { data, error } = await supabase
+        .from("attendance")
+        .update({
+          clock_in: now.toISOString(),
+          location_id: locationId,
+          shift_id: shift.id,
+          status,
+          scheduled_start: scheduledStart.toISOString(),
+          scheduled_end: scheduledEnd.toISOString(),
+          is_late: isLate,
+          minutes_late: minutesLate,
+          is_absent: false,
+          is_overtime: false,
+          minutes_overtime: 0,
+          is_holiday: dayContext.isHoliday,
+          is_restday: dayContext.isRestDay,
+          holiday_name: dayContext.holidayName,
+          remarks: remarks || existing.remarks || null,
+        })
+        .eq("id", existing.id)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      return mapAttendance(data);
+    }
 
     const { data, error } = await supabase
       .from("attendance")
@@ -114,13 +302,19 @@ export const attendanceService = {
         date: today,
         location_id: locationId,
         shift_id: shift.id,
-        status: "present",
+        status,
         clock_in: now.toISOString(),
         scheduled_start: scheduledStart.toISOString(),
         scheduled_end: scheduledEnd.toISOString(),
         is_late: isLate,
         minutes_late: minutesLate,
         is_absent: false,
+        is_overtime: false,
+        minutes_overtime: 0,
+        is_holiday: dayContext.isHoliday,
+        is_restday: dayContext.isRestDay,
+        holiday_name: dayContext.holidayName,
+        remarks: remarks || null,
       })
       .select()
       .single();
@@ -135,13 +329,31 @@ export const attendanceService = {
 
     const { data: record, error: recordError } = await supabase
       .from("attendance")
-      .select("id, scheduled_end, shift_id, clock_out")
+      .select(
+        `
+        id,
+        scheduled_end,
+        shift_id,
+        clock_in,
+        clock_out,
+        is_holiday,
+        is_restday,
+        holiday_name,
+        is_late,
+        minutes_late
+      `
+      )
       .eq("id", recordId)
       .single();
 
     if (recordError) throw recordError;
+
     if (record.clock_out) {
       throw new Error("You have already clocked out.");
+    }
+
+    if (!record.clock_in) {
+      throw new Error("Cannot clock out without a clock in record.");
     }
 
     const { data: shift, error: shiftError } = await supabase
@@ -160,12 +372,31 @@ export const attendanceService = {
     const isOvertime = now > overtimeThreshold;
     const minutesOvertime = isOvertime ? diffMinutes(now, scheduledEnd) : 0;
 
+    const status = resolveAttendanceStatus({
+      worked: true,
+      isHoliday: !!record.is_holiday,
+      isRestDay: !!record.is_restday,
+      isLate: !!record.is_late,
+      isOvertime,
+    });
+
+    const remarks = buildRemarks({
+      isHoliday: !!record.is_holiday,
+      isRestDay: !!record.is_restday,
+      worked: true,
+      holidayName: record.holiday_name,
+      isLate: !!record.is_late,
+      isOvertime,
+    });
+
     const { data, error } = await supabase
       .from("attendance")
       .update({
         clock_out: now.toISOString(),
+        status,
         is_overtime: isOvertime,
         minutes_overtime: minutesOvertime,
+        remarks: remarks || null,
       })
       .eq("id", recordId)
       .select()
@@ -177,9 +408,6 @@ export const attendanceService = {
   },
 
   async markAbsencesForDay(date: string) {
-    // This function is intended for admin/cron usage
-    // It inserts absent records for users with shifts but no attendance for the date.
-
     const { data: users, error: usersError } = await supabase
       .from("users")
       .select("id, shift_id")
@@ -202,34 +430,48 @@ export const attendanceService = {
         .from("shifts")
         .select("*")
         .eq("id", user.shift_id)
+        .eq("is_active", true)
         .single();
 
       if (shiftError) throw shiftError;
 
-      const scheduledStartISO = buildPHDateTimeISOString(date, shift.start_time);
-      const scheduledEndISO = buildPHDateTimeISOString(date, shift.end_time);
+      const { scheduledStart, scheduledEnd } = getShiftSchedule(date, shift);
+      const dayContext = await getDayContext(user.id, date, shift.location_id);
 
-      let scheduledStart = new Date(scheduledStartISO);
-      let scheduledEnd = new Date(scheduledEndISO);
+      const status = resolveAttendanceStatus({
+        worked: false,
+        isHoliday: dayContext.isHoliday,
+        isRestDay: dayContext.isRestDay,
+      });
 
-      if (scheduledEnd <= scheduledStart) {
-        scheduledEnd = new Date(scheduledEnd.getTime() + 24 * 60 * 60 * 1000);
-      }
+      const isAbsent = !dayContext.isHoliday && !dayContext.isRestDay;
+
+      const remarks = isAbsent
+        ? "Auto-marked absent"
+        : buildRemarks({
+            isHoliday: dayContext.isHoliday,
+            isRestDay: dayContext.isRestDay,
+            worked: false,
+            holidayName: dayContext.holidayName,
+          });
 
       const { error: insertError } = await supabase.from("attendance").insert({
         user_id: user.id,
         date,
         shift_id: shift.id,
         location_id: shift.location_id,
-        status: "absent",
+        status,
         scheduled_start: scheduledStart.toISOString(),
         scheduled_end: scheduledEnd.toISOString(),
-        is_absent: true,
+        is_absent: isAbsent,
         is_late: false,
         is_overtime: false,
         minutes_late: 0,
         minutes_overtime: 0,
-        remarks: "Auto-marked absent",
+        is_holiday: dayContext.isHoliday,
+        is_restday: dayContext.isRestDay,
+        holiday_name: dayContext.holidayName,
+        remarks,
       });
 
       if (insertError) throw insertError;

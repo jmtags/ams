@@ -1,5 +1,5 @@
 import { useState, useEffect, FormEvent } from "react";
-import { Plus, Search, Pencil, Trash2 } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, CalendarDays } from "lucide-react";
 import { AdminLayout } from "../layouts/admin-layout";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -29,6 +29,7 @@ import {
 import { userService } from "../services/user.service";
 import { departmentService } from "../services/department.service";
 import { shiftService } from "../services/shift.service";
+import { restDayService, type RestDay } from "../services/restday.service";
 import type { User, Department } from "../lib/types";
 
 type Shift = {
@@ -60,6 +61,12 @@ type UserFormData = {
   atm_number: string;
 };
 
+type RestDayFormData = {
+  day_of_week: string;
+  effective_from: string;
+  effective_to: string;
+};
+
 const initialFormData: UserFormData = {
   name: "",
   email: "",
@@ -73,21 +80,39 @@ const initialFormData: UserFormData = {
   atm_number: "",
 };
 
+const initialRestDayFormData: RestDayFormData = {
+  day_of_week: "",
+  effective_from: "",
+  effective_to: "",
+};
+
 export function UserManagementPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isRestDialogOpen, setIsRestDialogOpen] = useState(false);
+
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [deletingUser, setDeletingUser] = useState<User | null>(null);
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+
   const [isLoading, setIsLoading] = useState(false);
   const [isPageLoading, setIsPageLoading] = useState(true);
+  const [isRestLoading, setIsRestLoading] = useState(false);
   const [error, setError] = useState("");
+  const [restError, setRestError] = useState("");
 
   const [formData, setFormData] = useState<UserFormData>(initialFormData);
+  const [restDays, setRestDays] = useState<RestDay[]>([]);
+  const [restDayFormData, setRestDayFormData] = useState<RestDayFormData>(
+    initialRestDayFormData
+  );
+  const [editingRestDay, setEditingRestDay] = useState<RestDay | null>(null);
 
   useEffect(() => {
     loadData();
@@ -141,8 +166,28 @@ export function UserManagementPage() {
     }
   };
 
+  const loadRestDays = async (userId: string) => {
+    try {
+      setIsRestLoading(true);
+      const data = await restDayService.getUserRestDays(userId);
+      setRestDays(data ?? []);
+    } catch (err) {
+      console.error("Error loading rest days:", err);
+      setRestError(
+        err instanceof Error ? err.message : "Failed to load rest days"
+      );
+    } finally {
+      setIsRestLoading(false);
+    }
+  };
+
   const resetForm = () => {
     setFormData(initialFormData);
+  };
+
+  const resetRestDayForm = () => {
+    setRestDayFormData(initialRestDayFormData);
+    setEditingRestDay(null);
   };
 
   const handleOpenDialog = (user?: User) => {
@@ -258,6 +303,93 @@ export function UserManagementPage() {
     }
   };
 
+  const handleOpenRestDays = async (user: User) => {
+    setSelectedUser(user);
+    setRestError("");
+    resetRestDayForm();
+    setIsRestDialogOpen(true);
+    await loadRestDays(user.id);
+  };
+
+  const handleCloseRestDialog = () => {
+    if (isRestLoading) return;
+    setIsRestDialogOpen(false);
+    setSelectedUser(null);
+    setRestDays([]);
+    setRestError("");
+    resetRestDayForm();
+  };
+
+  const handleEditRestDay = (restDay: RestDay) => {
+    setEditingRestDay(restDay);
+    setRestDayFormData({
+      day_of_week: restDay.day_of_week,
+      effective_from: restDay.effective_from,
+      effective_to: restDay.effective_to ?? "",
+    });
+  };
+
+  const handleSaveRestDay = async () => {
+    if (!selectedUser) return;
+
+    if (!restDayFormData.day_of_week || !restDayFormData.effective_from) {
+      setRestError("Day of week and effective from are required.");
+      return;
+    }
+
+    setIsRestLoading(true);
+    setRestError("");
+
+    try {
+      if (editingRestDay) {
+        await restDayService.updateRestDay(editingRestDay.id, {
+          day_of_week: restDayFormData.day_of_week,
+          effective_from: restDayFormData.effective_from,
+          effective_to: restDayFormData.effective_to || null,
+        });
+      } else {
+        await restDayService.addRestDay({
+          user_id: selectedUser.id,
+          day_of_week: restDayFormData.day_of_week,
+          effective_from: restDayFormData.effective_from,
+          effective_to: restDayFormData.effective_to || null,
+        });
+      }
+
+      resetRestDayForm();
+      await loadRestDays(selectedUser.id);
+    } catch (err) {
+      console.error(err);
+      setRestError(
+        err instanceof Error ? err.message : "Failed to save rest day"
+      );
+    } finally {
+      setIsRestLoading(false);
+    }
+  };
+
+  const handleDeleteRestDay = async (id: string) => {
+    if (!selectedUser) return;
+
+    setIsRestLoading(true);
+    setRestError("");
+
+    try {
+      await restDayService.deleteRestDay(id);
+      if (editingRestDay?.id === id) {
+        resetRestDayForm();
+      }
+      await loadRestDays(selectedUser.id);
+    } catch (err) {
+      console.error(err);
+      setRestError(
+        err instanceof Error ? err.message : "Failed to delete rest day"
+      );
+    } finally {
+      setIsRestLoading(false);
+    }
+  };
+
   return (
     <AdminLayout>
       <div className="space-y-6">
@@ -265,7 +397,8 @@ export function UserManagementPage() {
           <div>
             <h1 className="text-neutral-900 mb-1">User Management</h1>
             <p className="text-neutral-600">
-              Manage employee accounts, information, and assigned shifts
+              Manage employee accounts, information, assigned shifts, and rest
+              days
             </p>
           </div>
 
@@ -278,7 +411,7 @@ export function UserManagementPage() {
           </Button>
         </div>
 
-        {error && !isDialogOpen && !isDeleteDialogOpen && (
+        {error && !isDialogOpen && !isDeleteDialogOpen && !isRestDialogOpen && (
           <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
             {error}
           </div>
@@ -351,6 +484,14 @@ export function UserManagementPage() {
                             onClick={() => handleOpenDialog(user)}
                           >
                             <Pencil className="w-4 h-4" />
+                          </Button>
+
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleOpenRestDays(user)}
+                          >
+                            <CalendarDays className="w-4 h-4 text-blue-600" />
                           </Button>
 
                           <Button
@@ -546,6 +687,178 @@ export function UserManagementPage() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={isRestDialogOpen}
+        onOpenChange={(open) => !open && handleCloseRestDialog()}
+      >
+        <DialogContent onClose={handleCloseRestDialog}>
+          <DialogHeader>
+            <DialogTitle>
+              Manage Rest Days{selectedUser?.name ? ` - ${selectedUser.name}` : ""}
+            </DialogTitle>
+            <DialogDescription>
+              Add, edit, or remove rest day schedules for this employee.
+            </DialogDescription>
+          </DialogHeader>
+
+          <DialogBody>
+            {restError && (
+              <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+                {restError}
+              </div>
+            )}
+
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                <Select
+                  label="Day of Week"
+                  value={restDayFormData.day_of_week}
+                  onChange={(e) =>
+                    setRestDayFormData((prev) => ({
+                      ...prev,
+                      day_of_week: e.target.value,
+                    }))
+                  }
+                  disabled={isRestLoading}
+                >
+                  <option value="">Select Day</option>
+                  <option value="Monday">Monday</option>
+                  <option value="Tuesday">Tuesday</option>
+                  <option value="Wednesday">Wednesday</option>
+                  <option value="Thursday">Thursday</option>
+                  <option value="Friday">Friday</option>
+                  <option value="Saturday">Saturday</option>
+                  <option value="Sunday">Sunday</option>
+                </Select>
+
+                <Input
+                  label="Effective From"
+                  type="date"
+                  value={restDayFormData.effective_from}
+                  onChange={(e) =>
+                    setRestDayFormData((prev) => ({
+                      ...prev,
+                      effective_from: e.target.value,
+                    }))
+                  }
+                  disabled={isRestLoading}
+                />
+
+                <Input
+                  label="Effective To"
+                  type="date"
+                  value={restDayFormData.effective_to}
+                  onChange={(e) =>
+                    setRestDayFormData((prev) => ({
+                      ...prev,
+                      effective_to: e.target.value,
+                    }))
+                  }
+                  disabled={isRestLoading}
+                />
+
+                <div className="flex items-end gap-2">
+                  <Button
+                    type="button"
+                    onClick={handleSaveRestDay}
+                    disabled={isRestLoading}
+                    className="w-full"
+                  >
+                    {isRestLoading
+                      ? "Saving..."
+                      : editingRestDay
+                      ? "Update"
+                      : "Add"}
+                  </Button>
+                </div>
+              </div>
+
+              {editingRestDay && (
+                <div className="flex justify-end">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={resetRestDayForm}
+                    disabled={isRestLoading}
+                  >
+                    Cancel Edit
+                  </Button>
+                </div>
+              )}
+
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Day</TableHead>
+                    <TableHead>Effective From</TableHead>
+                    <TableHead>Effective To</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+
+                <TableBody>
+                  {isRestLoading && restDays.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center text-neutral-500 py-8">
+                        Loading rest days...
+                      </TableCell>
+                    </TableRow>
+                  ) : restDays.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center text-neutral-500 py-8">
+                        No rest days found
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    restDays.map((restDay) => (
+                      <TableRow key={restDay.id}>
+                        <TableCell>{restDay.day_of_week}</TableCell>
+                        <TableCell>{restDay.effective_from}</TableCell>
+                        <TableCell>{restDay.effective_to || "-"}</TableCell>
+                        <TableCell>
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleEditRestDay(restDay)}
+                              disabled={isRestLoading}
+                            >
+                              <Pencil className="w-4 h-4" />
+                            </Button>
+
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDeleteRestDay(restDay.id)}
+                              disabled={isRestLoading}
+                            >
+                              <Trash2 className="w-4 h-4 text-red-600" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </DialogBody>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleCloseRestDialog}
+              disabled={isRestLoading}
+            >
+              Close
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

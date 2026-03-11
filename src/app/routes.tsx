@@ -7,6 +7,7 @@ import { UserManagementPage } from './pages/user-management';
 import { DepartmentManagementPage } from './pages/department-management';
 import { LocationManagementPage } from './pages/location-management';
 import ShiftManagementPage from './pages/ShiftManagementPage';
+import ManageHolidaysPage from './pages/manage-holidays';
 import { ProtectedRoute } from './components/protected-route';
 
 export const router = createBrowserRouter([
@@ -71,6 +72,14 @@ export const router = createBrowserRouter([
     element: (
       <ProtectedRoute requireAdmin>
         <ShiftManagementPage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: '/admin/holidays',
+    element: (
+      <ProtectedRoute requireAdmin>
+        <ManageHolidaysPage />
       </ProtectedRoute>
     ),
   },
