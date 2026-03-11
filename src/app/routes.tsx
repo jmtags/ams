@@ -8,7 +8,10 @@ import { DepartmentManagementPage } from './pages/department-management';
 import { LocationManagementPage } from './pages/location-management';
 import ShiftManagementPage from './pages/ShiftManagementPage';
 import ManageHolidaysPage from './pages/manage-holidays';
+import ManageLeaveTypesPage from './pages/manage-leave-types-page';
 import { ProtectedRoute } from './components/protected-route';
+import ManageLeaveBalancesPage from './pages/manage-leave-balances-page';
+import ManageLeaveRequestsPage from './pages/manage-leave-requests-page';
 
 export const router = createBrowserRouter([
   {
@@ -83,6 +86,30 @@ export const router = createBrowserRouter([
       </ProtectedRoute>
     ),
   },
+  {
+    path: '/admin/leave-types',
+    element: (
+      <ProtectedRoute requireAdmin>
+        <ManageLeaveTypesPage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+  path: '/admin/leave-balances',
+  element: (
+    <ProtectedRoute requireAdmin>
+      <ManageLeaveBalancesPage />
+    </ProtectedRoute>
+  ),
+},
+{
+  path: '/admin/leave-requests',
+  element: (
+    <ProtectedRoute requireAdmin>
+      <ManageLeaveRequestsPage />
+    </ProtectedRoute>
+  ),
+},
   {
     path: '*',
     element: (

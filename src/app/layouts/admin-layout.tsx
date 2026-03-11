@@ -9,6 +9,10 @@ import {
   CalendarDays,
   LogOut,
   User,
+  FileText,
+  Tags,
+  Wallet,
+  ClipboardList,
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { Button } from '../components/ui/button';
@@ -18,13 +22,19 @@ interface AdminLayoutProps {
   children: ReactNode;
 }
 
-const navigationItems = [
+const mainNavigationItems = [
   { name: 'Dashboard', href: '/admin', icon: LayoutDashboard },
   { name: 'User Management', href: '/admin/users', icon: Users },
   { name: 'Departments', href: '/admin/departments', icon: Building2 },
   { name: 'Locations', href: '/admin/locations', icon: MapPin },
   { name: 'Shift Management', href: '/admin/shifts', icon: Clock3 },
   { name: 'Holidays', href: '/admin/holidays', icon: CalendarDays },
+];
+
+const leaveNavigationItems = [
+  { name: 'Leave Types', href: '/admin/leave-types', icon: Tags },
+  { name: 'Leave Balances', href: '/admin/leave-balances', icon: Wallet },
+  { name: 'Leave Requests', href: '/admin/leave-requests', icon: ClipboardList },
 ];
 
 export function AdminLayout({ children }: AdminLayoutProps) {
@@ -45,27 +55,59 @@ export function AdminLayout({ children }: AdminLayoutProps) {
             <h1 className="text-xl text-neutral-900 font-semibold">Admin Panel</h1>
           </div>
 
-          <nav className="flex-1 p-4 space-y-1">
-            {navigationItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = location.pathname === item.href;
+          <nav className="flex-1 p-4 overflow-y-auto">
+            <div className="space-y-1">
+              {mainNavigationItems.map((item) => {
+                const Icon = item.icon;
+                const isActive = location.pathname === item.href;
 
-              return (
-                <Link
-                  key={item.name}
-                  to={item.href}
-                  className={cn(
-                    'flex items-center gap-3 px-3 py-2 rounded-lg transition-colors',
-                    isActive
-                      ? 'bg-neutral-900 text-white'
-                      : 'text-neutral-700 hover:bg-neutral-100'
-                  )}
-                >
-                  <Icon className="w-5 h-5" />
-                  <span>{item.name}</span>
-                </Link>
-              );
-            })}
+                return (
+                  <Link
+                    key={item.name}
+                    to={item.href}
+                    className={cn(
+                      'flex items-center gap-3 px-3 py-2 rounded-lg transition-colors',
+                      isActive
+                        ? 'bg-neutral-900 text-white'
+                        : 'text-neutral-700 hover:bg-neutral-100'
+                    )}
+                  >
+                    <Icon className="w-5 h-5" />
+                    <span>{item.name}</span>
+                  </Link>
+                );
+              })}
+            </div>
+
+            <div className="mt-6">
+              <div className="flex items-center gap-2 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                <FileText className="w-4 h-4" />
+                <span>Leaves</span>
+              </div>
+
+              <div className="mt-1 space-y-1">
+                {leaveNavigationItems.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = location.pathname === item.href;
+
+                  return (
+                    <Link
+                      key={item.name}
+                      to={item.href}
+                      className={cn(
+                        'flex items-center gap-3 px-3 py-2 rounded-lg transition-colors',
+                        isActive
+                          ? 'bg-neutral-900 text-white'
+                          : 'text-neutral-700 hover:bg-neutral-100'
+                      )}
+                    >
+                      <Icon className="w-5 h-5" />
+                      <span>{item.name}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
           </nav>
 
           <div className="p-4 border-t border-neutral-200">
