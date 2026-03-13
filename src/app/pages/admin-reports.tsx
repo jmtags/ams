@@ -9,13 +9,20 @@ type DashboardAttendanceRow = AttendanceRecord & {
   employeeName: string
   employeeEmail: string
   department: string
-  sourceType?: "attendance" | "synthetic_absent"
+  sourceType?: "attendance" | "synthetic_absent" | "synthetic_leave"
+  leaveTypeName?: string | null
+  leaveTypeCode?: string | null
+  leaveReason?: string | null
+  isApprovedLeave?: boolean
+  leaveDayValue?: number
+  leaveRequestId?: string | null
 }
 
 type MonthlyStatItem = {
   present: number
   late: number
   absent: number
+  approvedLeave: number
   holiday: number
   restday: number
   overtime: number
@@ -53,7 +60,7 @@ export function AdminReportsPage() {
 
     try {
       const result = await attendanceSummaryService.getRangeData(startDate, endDate)
-      setAttendance(result.attendanceRows)
+      setAttendance(result.attendanceRows as DashboardAttendanceRow[])
     } catch (error) {
       console.error("Failed to load attendance report:", error)
     } finally {
@@ -73,6 +80,7 @@ export function AdminReportsPage() {
           present: 0,
           late: 0,
           absent: 0,
+          approvedLeave: 0,
           holiday: 0,
           restday: 0,
           overtime: 0,
@@ -91,6 +99,8 @@ export function AdminReportsPage() {
         stats[month].late += 1
       } else if (record.status === "absent") {
         stats[month].absent += 1
+      } else if (record.status === "approved_leave") {
+        stats[month].approvedLeave += record.leaveDayValue ?? 1
       } else if (record.status === "holiday") {
         stats[month].holiday += 1
       } else if (record.status === "restday") {
@@ -138,7 +148,7 @@ export function AdminReportsPage() {
             Monthly Attendance Report
           </h1>
           <p className="text-neutral-600">
-            Summary of attendance including system-generated absences
+            Summary of attendance, absences, and approved leaves
           </p>
         </div>
 
@@ -166,6 +176,7 @@ export function AdminReportsPage() {
                 <th className="border px-4 py-2 text-left">Present</th>
                 <th className="border px-4 py-2 text-left">Late</th>
                 <th className="border px-4 py-2 text-left">Absent</th>
+                <th className="border px-4 py-2 text-left">Approved Leave</th>
                 <th className="border px-4 py-2 text-left">Holiday</th>
                 <th className="border px-4 py-2 text-left">Rest Day</th>
                 <th className="border px-4 py-2 text-left">Overtime</th>
@@ -181,7 +192,7 @@ export function AdminReportsPage() {
             <tbody>
               {sortedMonths.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="border px-4 py-6 text-center">
+                  <td colSpan={12} className="border px-4 py-6 text-center">
                     No report data found.
                   </td>
                 </tr>
@@ -195,6 +206,7 @@ export function AdminReportsPage() {
                       <td className="border px-4 py-2">{data.present}</td>
                       <td className="border px-4 py-2">{data.late}</td>
                       <td className="border px-4 py-2">{data.absent}</td>
+                      <td className="border px-4 py-2">{data.approvedLeave}</td>
                       <td className="border px-4 py-2">{data.holiday}</td>
                       <td className="border px-4 py-2">{data.restday}</td>
                       <td className="border px-4 py-2">{data.overtime}</td>

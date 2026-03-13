@@ -1,29 +1,46 @@
-import { createBrowserRouter, Navigate } from 'react-router';
-import { LoginPage } from './pages/login';
-import { UserDashboardPage } from './pages/user-dashboard';
-import { ProfilePage } from './pages/profile';
-import { AdminDashboardPage } from './pages/admin-dashboard';
-import { UserManagementPage } from './pages/user-management';
-import { DepartmentManagementPage } from './pages/department-management';
-import { LocationManagementPage } from './pages/location-management';
-import ShiftManagementPage from './pages/ShiftManagementPage';
-import ManageHolidaysPage from './pages/manage-holidays';
-import ManageLeaveTypesPage from './pages/manage-leave-types-page';
-import { ProtectedRoute } from './components/protected-route';
-import ManageLeaveBalancesPage from './pages/manage-leave-balances-page';
-import ManageLeaveRequestsPage from './pages/manage-leave-requests-page';
+import { createBrowserRouter, Navigate } from "react-router";
+import { LoginPage } from "./pages/login";
+import { UserDashboardPage } from "./pages/user-dashboard";
+import { ProfilePage } from "./pages/profile";
+
+import { AdminDashboardPage } from "./pages/admin-dashboard";
+import { AdminReportsPage } from "./pages/admin-reports";
+
+import { UserManagementPage } from "./pages/user-management";
+import { DepartmentManagementPage } from "./pages/department-management";
+import { LocationManagementPage } from "./pages/location-management";
+import ShiftManagementPage from "./pages/ShiftManagementPage";
+
+import ManageHolidaysPage from "./pages/manage-holidays";
+import ManageLeaveTypesPage from "./pages/manage-leave-types-page";
+import ManageLeaveBalancesPage from "./pages/manage-leave-balances-page";
+import ManageLeaveRequestsPage from "./pages/manage-leave-requests-page";
+
+import { AdminPayrollPeriodsPage } from "./pages/admin-payroll-periods";
+import { AdminEmployeeCompensationPage } from "./pages/admin-employee-compensation";
+import { AdminPayrollGeneratePage } from "./pages/admin-payroll-generate";
+import { AdminPayrollRecordsPage } from "./pages/admin-payroll-records";
+import { AdminPayrollDetailsPage } from "./pages/admin-payroll-details";
+
+import { AdminPayrollAdjustmentsPage } from "./pages/admin-payroll-adjustments";
+import { AdminRecurringDeductionsPage } from "./pages/admin-recurring-deductions";
+import { AdminPayrollSettingsPage } from "./pages/admin-payroll-settings";
+
+import { ProtectedRoute } from "./components/protected-route";
 
 export const router = createBrowserRouter([
   {
-    path: '/',
+    path: "/",
     element: <Navigate to="/login" replace />,
   },
   {
-    path: '/login',
+    path: "/login",
     element: <LoginPage />,
   },
+
+  // USER ROUTES
   {
-    path: '/dashboard',
+    path: "/dashboard",
     element: (
       <ProtectedRoute>
         <UserDashboardPage />
@@ -31,15 +48,21 @@ export const router = createBrowserRouter([
     ),
   },
   {
-    path: '/profile',
+    path: "/profile",
     element: (
       <ProtectedRoute>
         <ProfilePage />
       </ProtectedRoute>
     ),
   },
+
+  // ADMIN ROUTES
   {
-    path: '/admin',
+    path: "/admin",
+    element: <Navigate to="/admin/dashboard" replace />,
+  },
+  {
+    path: "/admin/dashboard",
     element: (
       <ProtectedRoute requireAdmin>
         <AdminDashboardPage />
@@ -47,7 +70,17 @@ export const router = createBrowserRouter([
     ),
   },
   {
-    path: '/admin/users',
+    path: "/admin/reports",
+    element: (
+      <ProtectedRoute requireAdmin>
+        <AdminReportsPage />
+      </ProtectedRoute>
+    ),
+  },
+
+  // ORGANIZATION
+  {
+    path: "/admin/users",
     element: (
       <ProtectedRoute requireAdmin>
         <UserManagementPage />
@@ -55,7 +88,7 @@ export const router = createBrowserRouter([
     ),
   },
   {
-    path: '/admin/departments',
+    path: "/admin/departments",
     element: (
       <ProtectedRoute requireAdmin>
         <DepartmentManagementPage />
@@ -63,7 +96,7 @@ export const router = createBrowserRouter([
     ),
   },
   {
-    path: '/admin/locations',
+    path: "/admin/locations",
     element: (
       <ProtectedRoute requireAdmin>
         <LocationManagementPage />
@@ -71,15 +104,17 @@ export const router = createBrowserRouter([
     ),
   },
   {
-    path: '/admin/shifts',
+    path: "/admin/shifts",
     element: (
       <ProtectedRoute requireAdmin>
         <ShiftManagementPage />
       </ProtectedRoute>
     ),
   },
+
+  // ATTENDANCE & LEAVE
   {
-    path: '/admin/holidays',
+    path: "/admin/holidays",
     element: (
       <ProtectedRoute requireAdmin>
         <ManageHolidaysPage />
@@ -87,7 +122,7 @@ export const router = createBrowserRouter([
     ),
   },
   {
-    path: '/admin/leave-types',
+    path: "/admin/leave-types",
     element: (
       <ProtectedRoute requireAdmin>
         <ManageLeaveTypesPage />
@@ -95,23 +130,91 @@ export const router = createBrowserRouter([
     ),
   },
   {
-  path: '/admin/leave-balances',
+    path: "/admin/leave-balances",
+    element: (
+      <ProtectedRoute requireAdmin>
+        <ManageLeaveBalancesPage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/admin/leave-requests",
+    element: (
+      <ProtectedRoute requireAdmin>
+        <ManageLeaveRequestsPage />
+      </ProtectedRoute>
+    ),
+  },
+
+  // PAYROLL
+  {
+    path: "/admin/payroll-periods",
+    element: (
+      <ProtectedRoute requireAdmin>
+        <AdminPayrollPeriodsPage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/admin/employee-compensation",
+    element: (
+      <ProtectedRoute requireAdmin>
+        <AdminEmployeeCompensationPage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/admin/payroll-generate",
+    element: (
+      <ProtectedRoute requireAdmin>
+        <AdminPayrollGeneratePage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/admin/payroll-records",
+    element: (
+      <ProtectedRoute requireAdmin>
+        <AdminPayrollRecordsPage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+  path: "/admin/payroll-records/:id",
   element: (
     <ProtectedRoute requireAdmin>
-      <ManageLeaveBalancesPage />
+      <AdminPayrollDetailsPage />
     </ProtectedRoute>
   ),
 },
 {
-  path: '/admin/leave-requests',
+  path: "/admin/payroll-adjustments",
   element: (
     <ProtectedRoute requireAdmin>
-      <ManageLeaveRequestsPage />
+      <AdminPayrollAdjustmentsPage />
     </ProtectedRoute>
   ),
 },
+{
+  path: "/admin/recurring-deductions",
+  element: (
+    <ProtectedRoute requireAdmin>
+      <AdminRecurringDeductionsPage />
+    </ProtectedRoute>
+  ),
+},
+
+{
+  path: "/admin/payroll-settings",
+  element: (
+    <ProtectedRoute requireAdmin>
+      <AdminPayrollSettingsPage />
+    </ProtectedRoute>
+  ),
+},
+
   {
-    path: '*',
+    path: "*",
     element: (
       <div className="min-h-screen bg-neutral-50 flex items-center justify-center">
         <div className="text-center">

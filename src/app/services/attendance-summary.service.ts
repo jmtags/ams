@@ -9,6 +9,7 @@ export type AttendanceSummaryRow = {
   locationId: string | null
   presentDays: number
   absentDays: number
+  leaveDays: number
   workedHolidayDays: number
   workedHolidayRestDayDays: number
   workedRestDayDays: number
@@ -20,7 +21,13 @@ type DashboardAttendanceRow = AttendanceRecord & {
   employeeName: string
   employeeEmail: string
   department: string
-  sourceType?: "attendance" | "synthetic_absent"
+  sourceType?: "attendance" | "synthetic_absent" | "synthetic_leave"
+  leaveTypeName?: string | null
+  leaveTypeCode?: string | null
+  leaveReason?: string | null
+  isApprovedLeave?: boolean
+  leaveDayValue?: number
+  leaveRequestId?: string | null
 }
 
 type RangeDataResult = {
@@ -54,6 +61,38 @@ type DbRestDay = {
   day_of_week: string
   effective_from: string | null
   effective_to: string | null
+}
+
+type DbApprovedLeaveDateRow = {
+  id: string
+  leave_date: string
+  day_value: number
+  leave_requests: {
+    id: string
+    user_id: string
+    is_half_day: boolean
+    half_day_portion: "AM" | "PM" | null
+    reason: string | null
+    status: string
+    leave_types: {
+      id: string
+      code: string
+      name: string
+    } | null
+  } | null
+}
+
+type ApprovedLeaveResolved = {
+  leaveRequestDateId: string
+  leaveRequestId: string
+  userId: string
+  leaveDate: string
+  dayValue: number
+  isHalfDay: boolean
+  halfDayPortion: "AM" | "PM" | null
+  reason: string | null
+  leaveTypeName: string | null
+  leaveTypeCode: string | null
 }
 
 const mapAttendance = (row: any): AttendanceRecord => ({
@@ -179,6 +218,55 @@ const createSyntheticAbsentRecord = (
   employeeEmail: user.email || "",
   department: user.department || "",
   sourceType: "synthetic_absent",
+  leaveTypeName: null,
+  leaveTypeCode: null,
+  leaveReason: null,
+  isApprovedLeave: false,
+  leaveDayValue: 0,
+  leaveRequestId: null,
+})
+
+const createSyntheticLeaveRecord = (
+  user: DbUser,
+  locationId: string | null,
+  dateString: string,
+  leave: ApprovedLeaveResolved
+): DashboardAttendanceRow => ({
+  id: `synthetic-leave-${leave.leaveRequestId}-${dateString}`,
+  userId: user.id,
+  clockIn: null,
+  clockOut: null,
+  date: dateString,
+  status: "approved_leave",
+  locationId,
+  shiftId: user.shift_id,
+  scheduledStart: null,
+  scheduledEnd: null,
+  minutesLate: 0,
+  minutesOvertime: 0,
+  isLate: false,
+  isOvertime: false,
+  isAbsent: false,
+  remarks:
+    leave.isHalfDay
+      ? `Approved half-day leave${leave.halfDayPortion ? ` (${leave.halfDayPortion})` : ""}`
+      : "Approved leave",
+  approvedOvertimeMinutes: 0,
+  overtimeStatus: null,
+  isHoliday: false,
+  isRestDay: false,
+  holidayName: null,
+  createdAt: new Date().toISOString(),
+  employeeName: user.name || "Unknown",
+  employeeEmail: user.email || "",
+  department: user.department || "",
+  sourceType: "synthetic_leave",
+  leaveTypeName: leave.leaveTypeName,
+  leaveTypeCode: leave.leaveTypeCode,
+  leaveReason: leave.reason,
+  isApprovedLeave: true,
+  leaveDayValue: leave.dayValue ?? 1,
+  leaveRequestId: leave.leaveRequestId,
 })
 
 const decorateAttendance = (
@@ -190,6 +278,12 @@ const decorateAttendance = (
   employeeEmail: user?.email || "",
   department: user?.department || "",
   sourceType: "attendance",
+  leaveTypeName: null,
+  leaveTypeCode: null,
+  leaveReason: null,
+  isApprovedLeave: false,
+  leaveDayValue: 0,
+  leaveRequestId: null,
 })
 
 export const attendanceSummaryService = {
@@ -200,6 +294,7 @@ export const attendanceSummaryService = {
       attendanceRes,
       holidaysRes,
       restDaysRes,
+      approvedLeaveDatesRes,
     ] = await Promise.all([
       supabase.from("users").select("id, name, email, department, shift_id").order("name"),
       supabase.from("shifts").select("id, location_id"),
@@ -215,6 +310,29 @@ export const attendanceSummaryService = {
         .gte("holiday_date", startDate)
         .lte("holiday_date", endDate),
       supabase.from("user_rest_days").select("id, user_id, day_of_week, effective_from, effective_to"),
+      supabase
+        .from("leave_request_dates")
+        .select(`
+          id,
+          leave_date,
+          day_value,
+          leave_requests!inner (
+            id,
+            user_id,
+            is_half_day,
+            half_day_portion,
+            reason,
+            status,
+            leave_types (
+              id,
+              code,
+              name
+            )
+          )
+        `)
+        .gte("leave_date", startDate)
+        .lte("leave_date", endDate)
+        .eq("leave_requests.status", "approved"),
     ])
 
     if (usersRes.error) throw usersRes.error
@@ -222,12 +340,30 @@ export const attendanceSummaryService = {
     if (attendanceRes.error) throw attendanceRes.error
     if (holidaysRes.error) throw holidaysRes.error
     if (restDaysRes.error) throw restDaysRes.error
+    if (approvedLeaveDatesRes.error) throw approvedLeaveDatesRes.error
 
     const users = (usersRes.data || []) as DbUser[]
     const shifts = (shiftsRes.data || []) as DbShift[]
     const holidays = (holidaysRes.data || []) as DbHoliday[]
     const restDays = (restDaysRes.data || []) as DbRestDay[]
     const attendance = (attendanceRes.data || []).map(mapAttendance)
+
+    const approvedLeaveDatesRaw = (approvedLeaveDatesRes.data || []) as DbApprovedLeaveDateRow[]
+
+    const approvedLeaves: ApprovedLeaveResolved[] = approvedLeaveDatesRaw
+      .filter((row) => row.leave_requests?.user_id)
+      .map((row) => ({
+        leaveRequestDateId: row.id,
+        leaveRequestId: row.leave_requests!.id,
+        userId: row.leave_requests!.user_id,
+        leaveDate: row.leave_date,
+        dayValue: Number(row.day_value ?? 1),
+        isHalfDay: row.leave_requests!.is_half_day ?? false,
+        halfDayPortion: row.leave_requests!.half_day_portion ?? null,
+        reason: row.leave_requests!.reason ?? null,
+        leaveTypeName: row.leave_requests!.leave_types?.name ?? null,
+        leaveTypeCode: row.leave_requests!.leave_types?.code ?? null,
+      }))
 
     const shiftLocationMap = new Map<string, string | null>()
     shifts.forEach((shift) => {
@@ -242,6 +378,11 @@ export const attendanceSummaryService = {
     const attendanceByUserDate = new Map<string, AttendanceRecord>()
     attendance.forEach((record) => {
       attendanceByUserDate.set(`${record.userId}__${record.date}`, record)
+    })
+
+    const approvedLeaveByUserDate = new Map<string, ApprovedLeaveResolved>()
+    approvedLeaves.forEach((leave) => {
+      approvedLeaveByUserDate.set(`${leave.userId}__${leave.leaveDate}`, leave)
     })
 
     const dateList = getDatesBetween(startDate, endDate)
@@ -262,6 +403,7 @@ export const attendanceSummaryService = {
         locationId: userLocationId,
         presentDays: 0,
         absentDays: 0,
+        leaveDays: 0,
         workedHolidayDays: 0,
         workedHolidayRestDayDays: 0,
         workedRestDayDays: 0,
@@ -274,6 +416,7 @@ export const attendanceSummaryService = {
         const isHoliday = Boolean(holiday)
         const isRestDay = isRestDayForDate(restDays, user.id, dateString)
         const existing = attendanceByUserDate.get(`${user.id}__${dateString}`)
+        const approvedLeave = approvedLeaveByUserDate.get(`${user.id}__${dateString}`)
         const summary = summaryMap.get(user.id)!
 
         if (existing) {
@@ -311,6 +454,20 @@ export const attendanceSummaryService = {
               break
           }
 
+          return
+        }
+
+        if (approvedLeave) {
+          const syntheticLeave = createSyntheticLeaveRecord(
+            user,
+            userLocationId,
+            dateString,
+            approvedLeave
+          )
+
+          detailedRows.push(syntheticLeave)
+          summary.leaveDays += approvedLeave.dayValue ?? 1
+          summary.totalCountedDays += 1
           return
         }
 

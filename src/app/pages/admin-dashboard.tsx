@@ -44,7 +44,13 @@ type DashboardAttendanceRow = AttendanceRecord & {
   employeeName: string
   employeeEmail: string
   department: string
-  sourceType?: "attendance" | "synthetic_absent"
+  sourceType?: "attendance" | "synthetic_absent" | "synthetic_leave"
+  leaveTypeName?: string | null
+  leaveTypeCode?: string | null
+  leaveReason?: string | null
+  isApprovedLeave?: boolean
+  leaveDayValue?: number
+  leaveRequestId?: string | null
 }
 
 type ChartItem = {
@@ -120,7 +126,7 @@ export function AdminDashboardPage() {
 
     try {
       const result = await attendanceSummaryService.getRangeData(startDate, endDate)
-      setAttendanceRows(result.attendanceRows)
+      setAttendanceRows(result.attendanceRows as DashboardAttendanceRow[])
       setSummaryRows(result.summaryRows)
     } catch (error) {
       console.error("Dashboard loading error:", error)
@@ -165,6 +171,8 @@ export function AdminDashboardPage() {
         return "Worked Rest Day"
       case "worked_holiday_restday":
         return "Worked Holiday + Rest Day"
+      case "approved_leave":
+        return "Approved Leave"
       default:
         return status || "-"
     }
@@ -180,6 +188,8 @@ export function AdminDashboardPage() {
         return "secondary"
       case "absent":
         return "destructive"
+      case "approved_leave":
+        return "outline"
       case "holiday":
       case "restday":
       case "holiday_restday":
@@ -243,6 +253,10 @@ export function AdminDashboardPage() {
     (record) => record.status === "absent"
   ).length
 
+  const totalApprovedLeaveCount = filteredAttendance.filter(
+    (record) => record.status === "approved_leave"
+  ).length
+
   const exportToExcel = () => {
     const data = filteredAttendance.map((record) => ({
       Employee: record.employeeName || "",
@@ -253,11 +267,16 @@ export function AdminDashboardPage() {
       ClockIn: record.clockIn ? formatPHTime(record.clockIn) : "",
       ClockOut: record.clockOut ? formatPHTime(record.clockOut) : "",
       Status: formatStatusLabel(record.status),
+      LeaveType: record.leaveTypeName || "",
+      LeaveCode: record.leaveTypeCode || "",
+      LeaveDayValue: record.leaveDayValue ?? "",
+      LeaveReason: record.leaveReason || "",
       LateMinutes: record.minutesLate || 0,
       OvertimeMinutes: record.minutesOvertime || 0,
       IsLate: record.isLate ? "Yes" : "No",
       IsOvertime: record.isOvertime ? "Yes" : "No",
       IsAbsent: record.isAbsent ? "Yes" : "No",
+      IsApprovedLeave: record.isApprovedLeave ? "Yes" : "No",
       IsHoliday: record.isHoliday ? "Yes" : "No",
       IsRestDay: record.isRestDay ? "Yes" : "No",
       HolidayName: record.holidayName || "",
@@ -267,6 +286,8 @@ export function AdminDashboardPage() {
       RecordSource:
         record.sourceType === "synthetic_absent"
           ? "System-generated absent"
+          : record.sourceType === "synthetic_leave"
+          ? "System-generated approved leave"
           : "Attendance record",
     }))
 
@@ -281,19 +302,24 @@ export function AdminDashboardPage() {
       { wch: 14 },
       { wch: 12 },
       { wch: 12 },
-      { wch: 24 },
+      { wch: 22 },
+      { wch: 20 },
+      { wch: 12 },
+      { wch: 12 },
+      { wch: 30 },
       { wch: 14 },
       { wch: 16 },
       { wch: 10 },
       { wch: 12 },
       { wch: 12 },
+      { wch: 16 },
       { wch: 12 },
       { wch: 12 },
       { wch: 20 },
       { wch: 14 },
       { wch: 14 },
       { wch: 30 },
-      { wch: 24 },
+      { wch: 30 },
     ]
 
     XLSX.utils.book_append_sheet(workbook, worksheet, "Attendance")
@@ -307,10 +333,7 @@ export function AdminDashboardPage() {
       type: "application/octet-stream",
     })
 
-    saveAs(
-      blob,
-      `attendance-report-${startDate}-to-${endDate}.xlsx`
-    )
+    saveAs(blob, `attendance-report-${startDate}-to-${endDate}.xlsx`)
   }
 
   const exportUserSummaryToExcel = () => {
@@ -321,6 +344,7 @@ export function AdminDashboardPage() {
       Location: getLocationName(row.locationId),
       PresentDays: row.presentDays,
       AbsentDays: row.absentDays,
+      LeaveDays: row.leaveDays,
       WorkedHolidayDays: row.workedHolidayDays,
       WorkedHolidayRestDayDays: row.workedHolidayRestDayDays,
       WorkedRestDayDays: row.workedRestDayDays,
@@ -337,6 +361,7 @@ export function AdminDashboardPage() {
       { wch: 28 },
       { wch: 18 },
       { wch: 18 },
+      { wch: 14 },
       { wch: 14 },
       { wch: 14 },
       { wch: 18 },
@@ -358,10 +383,7 @@ export function AdminDashboardPage() {
       type: "application/octet-stream",
     })
 
-    saveAs(
-      blob,
-      `attendance-user-summary-${startDate}-to-${endDate}.xlsx`
-    )
+    saveAs(blob, `attendance-user-summary-${startDate}-to-${endDate}.xlsx`)
   }
 
   const chartData: ChartItem[] = useMemo(() => {
@@ -391,16 +413,21 @@ export function AdminDashboardPage() {
       (a) => a.status === "restday"
     ).length
 
+    const leaveCount = filteredAttendance.filter(
+      (a) => a.status === "approved_leave"
+    ).length
+
     return [
       { name: "Present", value: presentCount },
       { name: "Late", value: lateCount },
       { name: "Absent", value: absentCount },
+      { name: "Approved Leave", value: leaveCount },
       { name: "Holiday", value: holidayCount },
       { name: "Rest Day", value: restdayCount },
     ].filter((item) => item.value > 0)
   }, [filteredAttendance])
 
-  const chartColors = ["#22c55e", "#f59e0b", "#ef4444", "#3b82f6", "#8b5cf6"]
+  const chartColors = ["#22c55e", "#f59e0b", "#ef4444", "#06b6d4", "#3b82f6", "#8b5cf6"]
 
   if (isLoading) {
     return (
@@ -422,7 +449,7 @@ export function AdminDashboardPage() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-6 gap-6">
           <Card>
             <CardContent className="pt-6">
               <p>Total Users</p>
@@ -457,13 +484,20 @@ export function AdminDashboardPage() {
               <p className="text-3xl font-bold text-red-600">{totalAbsentCount}</p>
             </CardContent>
           </Card>
+
+          <Card>
+            <CardContent className="pt-6">
+              <p>Approved Leaves</p>
+              <p className="text-3xl font-bold text-cyan-600">{totalApprovedLeaveCount}</p>
+            </CardContent>
+          </Card>
         </div>
 
         <Card>
           <CardHeader>
             <CardTitle>Attendance Overview</CardTitle>
             <CardDescription>
-              Summary based on filtered attendance records
+              Summary based on filtered attendance and approved leave records
             </CardDescription>
           </CardHeader>
 
@@ -501,7 +535,7 @@ export function AdminDashboardPage() {
           <CardHeader>
             <CardTitle>Attendance Filters</CardTitle>
             <CardDescription>
-              Absence detection is computed from the selected date range.
+              Absence detection excludes approved leave dates.
             </CardDescription>
           </CardHeader>
 
@@ -612,6 +646,7 @@ export function AdminDashboardPage() {
                     <TableHead>Location</TableHead>
                     <TableHead>Present</TableHead>
                     <TableHead>Absent</TableHead>
+                    <TableHead>Leave</TableHead>
                     <TableHead>Worked Holiday</TableHead>
                     <TableHead>Worked Holiday + Rest Day</TableHead>
                     <TableHead>Worked Rest Day</TableHead>
@@ -622,7 +657,7 @@ export function AdminDashboardPage() {
                 <TableBody>
                   {filteredSummaryRows.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={9} className="text-center py-6">
+                      <TableCell colSpan={10} className="text-center py-6">
                         No summary records found.
                       </TableCell>
                     </TableRow>
@@ -634,6 +669,7 @@ export function AdminDashboardPage() {
                         <TableCell>{getLocationName(row.locationId)}</TableCell>
                         <TableCell>{row.presentDays}</TableCell>
                         <TableCell>{row.absentDays}</TableCell>
+                        <TableCell>{row.leaveDays}</TableCell>
                         <TableCell>{row.workedHolidayDays}</TableCell>
                         <TableCell>{row.workedHolidayRestDayDays}</TableCell>
                         <TableCell>{row.workedRestDayDays}</TableCell>
@@ -666,6 +702,7 @@ export function AdminDashboardPage() {
                   <TableHead>Clock In</TableHead>
                   <TableHead>Clock Out</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Leave Type</TableHead>
                   <TableHead>Late</TableHead>
                   <TableHead>OT</TableHead>
                   <TableHead>Holiday</TableHead>
@@ -676,7 +713,7 @@ export function AdminDashboardPage() {
               <TableBody>
                 {paginatedAttendance.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={11} className="text-center py-6">
+                    <TableCell colSpan={12} className="text-center py-6">
                       No attendance records found.
                     </TableCell>
                   </TableRow>
@@ -697,6 +734,15 @@ export function AdminDashboardPage() {
                         <Badge variant={getStatusBadgeVariant(record.status)}>
                           {formatStatusLabel(record.status)}
                         </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {record.status === "approved_leave"
+                          ? `${record.leaveTypeName || "Leave"}${
+                              record.leaveDayValue && record.leaveDayValue < 1
+                                ? ` (${record.leaveDayValue})`
+                                : ""
+                            }`
+                          : "-"}
                       </TableCell>
                       <TableCell>{record.minutesLate || 0}</TableCell>
                       <TableCell>{record.minutesOvertime || 0}</TableCell>

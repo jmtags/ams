@@ -8,6 +8,7 @@ export type User = {
   email: string;
   department: string | null;
   role: UserRole;
+  shift_id?: string | null;
   sss?: string | null;
   pagibig?: string | null;
   philhealth?: string | null;
@@ -52,11 +53,63 @@ type CreateUserByAdminPayload = {
   shift_id?: string | null;
 };
 
-
 const cleanPayload = <T extends Record<string, any>>(payload: T): Partial<T> => {
   return Object.fromEntries(
     Object.entries(payload).filter(([_, value]) => value !== undefined)
   ) as Partial<T>;
+};
+
+const getAccessTokenOrThrow = async (): Promise<string> => {
+  const {
+    data: { session },
+    error: sessionError,
+  } = await supabase.auth.getSession();
+
+  if (sessionError) {
+    throw new Error(sessionError.message || "Failed to get session.");
+  }
+
+  if (session?.access_token) {
+    return session.access_token;
+  }
+
+  const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+
+  if (refreshError) {
+    throw new Error(refreshError.message || "Session expired. Please log in again.");
+  }
+
+  const refreshedToken = refreshData.session?.access_token;
+
+  if (!refreshedToken) {
+    throw new Error("No active session found. Please log in again.");
+  }
+
+  return refreshedToken;
+};
+
+const isJwtLikeError = (message?: string) => {
+  const text = (message || "").toLowerCase();
+
+  return (
+    text.includes("jwt") ||
+    text.includes("not authenticated") ||
+    text.includes("unauthorized") ||
+    text.includes("invalid token") ||
+    text.includes("auth")
+  );
+};
+
+const invokeAdminUpdateUser = async (
+  payload: AdminUpdateUserPayload,
+  accessToken: string
+) => {
+  return supabase.functions.invoke("admin-update-user", {
+    body: payload,
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
 };
 
 export const userService = {
@@ -104,47 +157,32 @@ export const userService = {
   // ADMIN UPDATE USER
   // Updates:
   // 1) public.users profile fields directly
-  // 2) auth email/password via Edge Function if needed
+  // 2) auth email/password via Edge Function
   // ===============================
 updateUserByAdmin: async (payload: AdminUpdateUserPayload): Promise<User> => {
-  const {
-    data: { session },
-    error: sessionError,
-  } = await supabase.auth.getSession();
+  const { data, error } = await supabase
+    .from("users")
+    .update({
+      name: payload.name,
+      department: payload.department ?? null,
+      role: payload.role ?? "user",
+      shift_id: payload.shift_id ?? null,
+      sss: payload.sss ?? null,
+      pagibig: payload.pagibig ?? null,
+      philhealth: payload.philhealth ?? null,
+      atm_number: payload.atm_number ?? null,
+    })
+    .eq("id", payload.id)
+    .select("*")
+    .single();
 
-  if (sessionError) {
-    throw new Error(sessionError.message);
-  }
-
-  if (!session) {
-    throw new Error("Not authenticated. Please login again.");
-  }
-
-  const { data, error } = await supabase.functions.invoke("admin-update-user", {
-    body: payload,
-    headers: {
-      Authorization: `Bearer ${session.access_token}`,
-    },
-  });
-
-  console.log("admin-update-user response:", { data, error });
-
-  if (error) {
-    throw new Error(error.message || "Failed to update user");
-  }
-
-  if (!data?.success) {
-    throw new Error(data?.error || "Failed to update user");
-  }
-
-  return data.user as User;
+  if (error) throw new Error(error.message || "Failed to update user");
+  return data as User;
 },
 
   // ===============================
   // DELETE USER
   // Only deletes from public.users
-  // If you want to delete auth user too,
-  // do it via Edge Function separately
   // ===============================
   deleteUser: async (id: string): Promise<void> => {
     const { error } = await supabase.from("users").delete().eq("id", id);
@@ -155,22 +193,27 @@ updateUserByAdmin: async (payload: AdminUpdateUserPayload): Promise<User> => {
   // ===============================
   // CREATE USER (Admin via Edge Function)
   // ===============================
-createUserByAdmin: async (
-  payload: CreateUserByAdminPayload
-): Promise<any> => {
-  const { data, error } = await supabase.functions.invoke("create-user", {
-    body: payload,
-  });
+  createUserByAdmin: async (
+    payload: CreateUserByAdminPayload
+  ): Promise<any> => {
+    const accessToken = await getAccessTokenOrThrow();
 
-  if (error) {
-    console.error("create-user Edge Function Error:", error);
-    throw new Error(error.message || "Failed to create user");
-  }
+    const { data, error } = await supabase.functions.invoke("create-user", {
+      body: payload,
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
 
-  if (!data?.success) {
-    throw new Error(data?.error || "Failed to create user");
-  }
+    if (error) {
+      console.error("create-user Edge Function Error:", error);
+      throw new Error(error.message || "Failed to create user");
+    }
 
-  return data;
-},
+    if (!data?.success) {
+      throw new Error(data?.error || "Failed to create user");
+    }
+
+    return data;
+  },
 };
