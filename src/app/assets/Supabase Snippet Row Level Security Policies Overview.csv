@@ -1,0 +1,39 @@
+schemaname,tablename,policyname,permissive,roles,command,using_expression,with_check
+public,attendance,Admin full access attendance,PERMISSIVE,{public},ALL,"(EXISTS ( SELECT 1
+   FROM users u
+  WHERE ((u.id = auth.uid()) AND (u.role = 'admin'::text))))",null
+public,attendance,Users can insert attendance,PERMISSIVE,{authenticated},INSERT,null,(auth.uid() = user_id)
+public,attendance,Users can insert own attendance,PERMISSIVE,{authenticated},INSERT,null,(user_id = auth.uid())
+public,attendance,Users can update own attendance,PERMISSIVE,{authenticated},UPDATE,(user_id = auth.uid()),null
+public,attendance,Users can view own attendance,PERMISSIVE,{authenticated},SELECT,(user_id = auth.uid()),null
+public,attendance,Users manage own attendance,PERMISSIVE,{public},ALL,(auth.uid() = user_id),null
+public,departments,Admin manage departments,PERMISSIVE,{public},ALL,"(EXISTS ( SELECT 1
+   FROM users u
+  WHERE ((u.id = auth.uid()) AND (u.role = 'admin'::text))))",null
+public,departments,Allow delete departments,PERMISSIVE,{authenticated},DELETE,true,null
+public,departments,Allow update departments,PERMISSIVE,{authenticated},UPDATE,true,true
+public,departments,Read departments,PERMISSIVE,{public},SELECT,true,null
+public,departments,authenticated can view departments,PERMISSIVE,{authenticated},SELECT,true,null
+public,locations,Admin manage locations,PERMISSIVE,{public},ALL,"(EXISTS ( SELECT 1
+   FROM users u
+  WHERE ((u.id = auth.uid()) AND (u.role = 'admin'::text))))",null
+public,locations,Authenticated users can read locations,PERMISSIVE,{authenticated},SELECT,true,null
+public,locations,Read locations,PERMISSIVE,{public},SELECT,true,null
+public,locations,authenticated can view locations,PERMISSIVE,{authenticated},SELECT,true,null
+public,shifts,authenticated can view shifts,PERMISSIVE,{authenticated},SELECT,true,null
+public,users,Allow read users,PERMISSIVE,{authenticated},SELECT,true,null
+public,users,Users can select own row,PERMISSIVE,{authenticated},SELECT,(id = auth.uid()),null
+public,users,Users can update own row,PERMISSIVE,{authenticated},UPDATE,(id = auth.uid()),null
+public,users,Users can view own profile,PERMISSIVE,{public},SELECT,(auth.uid() = id),null
+public,users,admins can update all users,PERMISSIVE,{authenticated},UPDATE,is_admin(),is_admin()
+public,users,admins can view all users,PERMISSIVE,{authenticated},SELECT,is_admin(),null
+public,users,users can update own profile,PERMISSIVE,{authenticated},UPDATE,(id = auth.uid()),(id = auth.uid())
+public,users,users can view own profile,PERMISSIVE,{authenticated},SELECT,(id = auth.uid()),null
+storage,objects,Authenticated users can delete leave attachments,PERMISSIVE,{authenticated},DELETE,(bucket_id = 'leave-attachments'::text),null
+storage,objects,Authenticated users can update leave attachments,PERMISSIVE,{authenticated},UPDATE,(bucket_id = 'leave-attachments'::text),(bucket_id = 'leave-attachments'::text)
+storage,objects,Authenticated users can upload leave attachments,PERMISSIVE,{authenticated},INSERT,null,(bucket_id = 'leave-attachments'::text)
+storage,objects,Authenticated users can view leave attachments,PERMISSIVE,{authenticated},SELECT,(bucket_id = 'leave-attachments'::text),null
+storage,objects,authenticated can delete company assets,PERMISSIVE,{authenticated},DELETE,(bucket_id = 'company-assets'::text),null
+storage,objects,authenticated can update company assets,PERMISSIVE,{authenticated},UPDATE,(bucket_id = 'company-assets'::text),(bucket_id = 'company-assets'::text)
+storage,objects,authenticated can upload company assets,PERMISSIVE,{authenticated},INSERT,null,(bucket_id = 'company-assets'::text)
+storage,objects,authenticated can view company assets,PERMISSIVE,{authenticated},SELECT,(bucket_id = 'company-assets'::text),null
