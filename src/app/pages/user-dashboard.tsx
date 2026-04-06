@@ -6,6 +6,7 @@ import {
   FilePlus2,
   XCircle,
   Paperclip,
+  FileEdit,
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { UserLayout } from '../layouts/user-layout';
@@ -26,11 +27,21 @@ import {
   TableRow,
 } from '../components/ui/table';
 import { Badge } from '../components/ui/badge';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogBody,
+  DialogFooter,
+} from '../components/ui/dialog';
 import { attendanceService } from "../services/attendance.service";
 import { locationService } from "../services/location.service";
 import { leaveTypeService, LeaveType } from "../services/leave-type.service";
 import { leaveBalanceService } from "../services/leave-balance.service";
 import { leaveRequestService, LeaveRequest } from "../services/leave-request.service";
+import { attendanceAdjustmentRequestService } from "../services/attendance-adjustment-request.service";
 import type { AttendanceRecord, Location } from '../lib/types';
 import { formatDate, formatTime, getGreeting } from '../lib/utils';
 
@@ -58,6 +69,12 @@ type LeaveFormState = {
   attachment: File | null;
 };
 
+type PunchAlterationFormState = {
+  requested_clock_in: string;
+  requested_clock_out: string;
+  request_reason: string;
+};
+
 const initialLeaveForm: LeaveFormState = {
   leave_type_id: '',
   date_from: '',
@@ -67,6 +84,23 @@ const initialLeaveForm: LeaveFormState = {
   reason: '',
   attachment: null,
 };
+
+const initialPunchAlterationForm: PunchAlterationFormState = {
+  requested_clock_in: '',
+  requested_clock_out: '',
+  request_reason: '',
+};
+
+function toLocalTimeInput(value?: string | null) {
+  if (!value) return '';
+  const date = new Date(value);
+  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+}
+
+function combineDateAndTime(date: string, time: string) {
+  if (!date || !time) return null;
+  return `${date}T${time}:00+08:00`;
+}
 
 export function UserDashboardPage() {
   const { user } = useAuth();
@@ -89,6 +123,14 @@ export function UserDashboardPage() {
   const [error, setError] = useState('');
   const [leaveError, setLeaveError] = useState('');
   const [leaveSuccess, setLeaveSuccess] = useState('');
+
+  const [isPunchDialogOpen, setIsPunchDialogOpen] = useState(false);
+  const [selectedAttendance, setSelectedAttendance] = useState<AttendanceRecord | null>(null);
+  const [punchAlterationForm, setPunchAlterationForm] = useState<PunchAlterationFormState>(initialPunchAlterationForm);
+  const [isPunchSubmitting, setIsPunchSubmitting] = useState(false);
+  const [punchError, setPunchError] = useState('');
+  const [punchSuccess, setPunchSuccess] = useState('');
+  const [pendingRequestAttendanceIds, setPendingRequestAttendanceIds] = useState<string[]>([]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -126,6 +168,17 @@ export function UserDashboardPage() {
       setLeaveTypes((leaveTypeRows ?? []).filter((item) => item.is_active));
       setLeaveBalances(balanceRows ?? []);
       setLeaveRequests(requestRows ?? []);
+
+      const pendingChecks = await Promise.all(
+        (history ?? []).map(async (record) => {
+          const pending = await attendanceAdjustmentRequestService.getPendingRequestByAttendanceId(record.id);
+          return pending ? record.id : null;
+        })
+      );
+
+      setPendingRequestAttendanceIds(
+        pendingChecks.filter((id): id is string => Boolean(id))
+      );
     } catch (err: any) {
       setError(err.message || 'Failed to load dashboard data.');
     } finally {
@@ -144,6 +197,17 @@ export function UserDashboardPage() {
 
       setAttendanceHistory(history);
       setTodayAttendance(today);
+
+      const pendingChecks = await Promise.all(
+        (history ?? []).map(async (record) => {
+          const pending = await attendanceAdjustmentRequestService.getPendingRequestByAttendanceId(record.id);
+          return pending ? record.id : null;
+        })
+      );
+
+      setPendingRequestAttendanceIds(
+        pendingChecks.filter((id): id is string => Boolean(id))
+      );
     } catch (err) {
       console.error("Error loading attendance:", err);
     }
@@ -257,6 +321,71 @@ export function UserDashboardPage() {
       setLeaveError(err.message || 'Failed to cancel leave request.');
     } finally {
       setCancellingId(null);
+    }
+  };
+
+  const handleOpenPunchDialog = (record: AttendanceRecord) => {
+    setSelectedAttendance(record);
+    setPunchAlterationForm({
+      requested_clock_in: toLocalTimeInput(record.clockIn),
+      requested_clock_out: toLocalTimeInput(record.clockOut),
+      request_reason: '',
+    });
+    setPunchError('');
+    setPunchSuccess('');
+    setIsPunchDialogOpen(true);
+  };
+
+  const handleClosePunchDialog = () => {
+    setIsPunchDialogOpen(false);
+    setSelectedAttendance(null);
+    setPunchAlterationForm(initialPunchAlterationForm);
+    setPunchError('');
+  };
+
+  const handleSubmitPunchAlterationRequest = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!user?.id || !selectedAttendance) return;
+
+    try {
+      setIsPunchSubmitting(true);
+      setPunchError('');
+      setPunchSuccess('');
+
+      if (!punchAlterationForm.request_reason.trim()) {
+        throw new Error('Please provide a reason for the punch alteration request.');
+      }
+
+      const requestedClockIn = punchAlterationForm.requested_clock_in
+        ? combineDateAndTime(selectedAttendance.date, punchAlterationForm.requested_clock_in)
+        : null;
+
+      const requestedClockOut = punchAlterationForm.requested_clock_out
+        ? combineDateAndTime(selectedAttendance.date, punchAlterationForm.requested_clock_out)
+        : null;
+
+      await attendanceAdjustmentRequestService.createRequest({
+        attendance_id: selectedAttendance.id,
+        user_id: user.id,
+        previous_clock_in: selectedAttendance.clockIn ?? null,
+        previous_clock_out: selectedAttendance.clockOut ?? null,
+        requested_clock_in: requestedClockIn,
+        requested_clock_out: requestedClockOut,
+        request_reason: punchAlterationForm.request_reason.trim(),
+        created_by: user.id,
+      });
+
+      setPunchSuccess('Punch alteration request submitted successfully.');
+      await loadAttendance();
+
+      setTimeout(() => {
+        handleClosePunchDialog();
+      }, 800);
+    } catch (err: any) {
+      setPunchError(err.message || 'Failed to submit punch alteration request.');
+    } finally {
+      setIsPunchSubmitting(false);
     }
   };
 
@@ -752,33 +881,170 @@ export function UserDashboardPage() {
                   <TableHead>Clock In</TableHead>
                   <TableHead>Clock Out</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Action</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {attendanceHistory.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center text-neutral-500 py-8">
+                    <TableCell colSpan={5} className="text-center text-neutral-500 py-8">
                       No attendance records found
                     </TableCell>
                   </TableRow>
                 ) : (
-                  attendanceHistory.map((record) => (
-                    <TableRow key={record.id}>
-                      <TableCell>{formatDate(record.date)}</TableCell>
-                      <TableCell>{formatTime(record.clockIn)}</TableCell>
-                      <TableCell>{record.clockOut ? formatTime(record.clockOut) : '-'}</TableCell>
-                      <TableCell>
-                        <Badge variant={getStatusBadgeVariant(record.status)}>
-                          {record.status}
-                        </Badge>
-                      </TableCell>
-                    </TableRow>
-                  ))
+                  attendanceHistory.map((record) => {
+                    const hasPendingRequest = pendingRequestAttendanceIds.includes(record.id);
+
+                    return (
+                      <TableRow key={record.id}>
+                        <TableCell>{formatDate(record.date)}</TableCell>
+                        <TableCell>{formatTime(record.clockIn)}</TableCell>
+                        <TableCell>{record.clockOut ? formatTime(record.clockOut) : '-'}</TableCell>
+                        <TableCell>
+                          <Badge variant={getStatusBadgeVariant(record.status)}>
+                            {record.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="flex items-center gap-2"
+                            disabled={hasPendingRequest}
+                            onClick={() => handleOpenPunchDialog(record)}
+                          >
+                            <FileEdit className="w-4 h-4" />
+                            {hasPendingRequest ? 'Request Pending' : 'Request Alteration'}
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
                 )}
               </TableBody>
             </Table>
           </CardContent>
         </Card>
+
+        <Dialog open={isPunchDialogOpen} onOpenChange={(open) => !open && handleClosePunchDialog()}>
+          <DialogContent
+            onClose={handleClosePunchDialog}
+            className="w-full max-w-xl max-h-[90vh] overflow-hidden p-0 flex flex-col"
+          >
+            <DialogHeader className="px-6 pt-6 pb-4 border-b">
+              <DialogTitle>Request Punch Alteration</DialogTitle>
+              <DialogDescription>
+                Submit a request to correct your time in or time out for this attendance record.
+              </DialogDescription>
+            </DialogHeader>
+
+            <form onSubmit={handleSubmitPunchAlterationRequest} className="flex-1 flex flex-col min-h-0">
+              <DialogBody className="flex-1 overflow-y-auto px-6 py-4 min-h-0">
+                {punchError && (
+                  <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+                    {punchError}
+                  </div>
+                )}
+
+                {punchSuccess && (
+                  <div className="mb-4 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg text-sm">
+                    {punchSuccess}
+                  </div>
+                )}
+
+                {selectedAttendance && (
+                  <div className="space-y-4">
+                    <div className="rounded-lg bg-neutral-50 border border-neutral-200 p-4">
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <p className="text-neutral-500 mb-1">Date</p>
+                          <p className="text-neutral-900">{formatDate(selectedAttendance.date)}</p>
+                        </div>
+                        <div>
+                          <p className="text-neutral-500 mb-1">Status</p>
+                          <p className="text-neutral-900 capitalize">{selectedAttendance.status}</p>
+                        </div>
+                        <div>
+                          <p className="text-neutral-500 mb-1">Current Time In</p>
+                          <p className="text-neutral-900">{formatTime(selectedAttendance.clockIn)}</p>
+                        </div>
+                        <div>
+                          <p className="text-neutral-500 mb-1">Current Time Out</p>
+                          <p className="text-neutral-900">
+                            {selectedAttendance.clockOut ? formatTime(selectedAttendance.clockOut) : '-'}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm text-neutral-700 mb-2">Requested Time In</label>
+                        <input
+                          type="time"
+                          value={punchAlterationForm.requested_clock_in}
+                          onChange={(e) =>
+                            setPunchAlterationForm((prev) => ({
+                              ...prev,
+                              requested_clock_in: e.target.value,
+                            }))
+                          }
+                          className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm text-neutral-700 mb-2">Requested Time Out</label>
+                        <input
+                          type="time"
+                          value={punchAlterationForm.requested_clock_out}
+                          onChange={(e) =>
+                            setPunchAlterationForm((prev) => ({
+                              ...prev,
+                              requested_clock_out: e.target.value,
+                            }))
+                          }
+                          className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm text-neutral-700 mb-2">Reason for Request</label>
+                      <textarea
+                        value={punchAlterationForm.request_reason}
+                        onChange={(e) =>
+                          setPunchAlterationForm((prev) => ({
+                            ...prev,
+                            request_reason: e.target.value,
+                          }))
+                        }
+                        rows={4}
+                        className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm"
+                        placeholder="Explain why your punch record needs correction"
+                        required
+                      />
+                    </div>
+                  </div>
+                )}
+              </DialogBody>
+
+              <DialogFooter className="px-6 py-4 border-t bg-white shrink-0">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleClosePunchDialog}
+                  disabled={isPunchSubmitting}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={isPunchSubmitting}>
+                  {isPunchSubmitting ? 'Submitting...' : 'Submit Request'}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
       </div>
     </UserLayout>
   );

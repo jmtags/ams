@@ -10,6 +10,8 @@ import { UserManagementPage } from "./pages/user-management";
 import { DepartmentManagementPage } from "./pages/department-management";
 import { LocationManagementPage } from "./pages/location-management";
 import ShiftManagementPage from "./pages/ShiftManagementPage";
+import { ManualAttendanceManagementPage } from "./pages/manual-attendance-management";
+import { AttendanceAdjustmentsManagementPage } from "./pages/attendance-adjustments-management";
 
 import ManageHolidaysPage from "./pages/manage-holidays";
 import ManageLeaveTypesPage from "./pages/manage-leave-types-page";
@@ -114,6 +116,22 @@ export const router = createBrowserRouter([
 
   // ATTENDANCE & LEAVE
   {
+    path: "/admin/manual-attendance",
+    element: (
+      <ProtectedRoute requireAdmin>
+        <ManualAttendanceManagementPage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/admin/attendance-adjustments",
+    element: (
+      <ProtectedRoute requireAdmin>
+        <AttendanceAdjustmentsManagementPage />
+      </ProtectedRoute>
+    ),
+  },
+  {
     path: "/admin/holidays",
     element: (
       <ProtectedRoute requireAdmin>
@@ -180,38 +198,37 @@ export const router = createBrowserRouter([
     ),
   },
   {
-  path: "/admin/payroll-records/:id",
-  element: (
-    <ProtectedRoute requireAdmin>
-      <AdminPayrollDetailsPage />
-    </ProtectedRoute>
-  ),
-},
-{
-  path: "/admin/payroll-adjustments",
-  element: (
-    <ProtectedRoute requireAdmin>
-      <AdminPayrollAdjustmentsPage />
-    </ProtectedRoute>
-  ),
-},
-{
-  path: "/admin/recurring-deductions",
-  element: (
-    <ProtectedRoute requireAdmin>
-      <AdminRecurringDeductionsPage />
-    </ProtectedRoute>
-  ),
-},
-
-{
-  path: "/admin/payroll-settings",
-  element: (
-    <ProtectedRoute requireAdmin>
-      <AdminPayrollSettingsPage />
-    </ProtectedRoute>
-  ),
-},
+    path: "/admin/payroll-records/:id",
+    element: (
+      <ProtectedRoute requireAdmin>
+        <AdminPayrollDetailsPage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/admin/payroll-adjustments",
+    element: (
+      <ProtectedRoute requireAdmin>
+        <AdminPayrollAdjustmentsPage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/admin/recurring-deductions",
+    element: (
+      <ProtectedRoute requireAdmin>
+        <AdminRecurringDeductionsPage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/admin/payroll-settings",
+    element: (
+      <ProtectedRoute requireAdmin>
+        <AdminPayrollSettingsPage />
+      </ProtectedRoute>
+    ),
+  },
 
   {
     path: "*",

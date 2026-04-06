@@ -1,6 +1,5 @@
 import { ReactNode, useMemo, useState } from "react";
-
-import { Link, useNavigate,NavLink, useLocation } from 'react-router';
+import { NavLink, useLocation } from "react-router";
 import {
   LayoutDashboard,
   Users,
@@ -12,6 +11,8 @@ import {
   Wallet,
   Banknote,
   FileText,
+  ClipboardPenLine,
+  ClipboardCheck,
   ChevronDown,
   Menu,
   X,
@@ -83,9 +84,14 @@ const navGroups: NavGroup[] = [
     label: "Attendance & Leave",
     items: [
       {
-        label: "Attendance",
-        to: "/admin/attendance",
-        icon: <Clock3 className="h-4 w-4" />,
+        label: "Manual Attendance",
+        to: "/admin/manual-attendance",
+        icon: <ClipboardPenLine className="h-4 w-4" />,
+      },
+      {
+        label: "Attendance Adjustments",
+        to: "/admin/attendance-adjustments",
+        icon: <ClipboardCheck className="h-4 w-4" />,
       },
       {
         label: "Holidays",
@@ -232,21 +238,21 @@ export function AdminLayout({ children }: AdminLayoutProps) {
   };
 
   return (
-    <div className="min-h-screen bg-neutral-50">
-      <div className="flex min-h-screen">
-        <aside className="hidden w-72 shrink-0 border-r bg-white lg:flex lg:flex-col">
-          <div className="border-b px-6 py-5">
+    <div className="h-screen bg-neutral-50 overflow-hidden">
+      <div className="flex h-full">
+        <aside className="hidden w-72 shrink-0 border-r bg-white lg:flex lg:flex-col h-screen">
+          <div className="border-b px-6 py-5 shrink-0">
             <div className="text-lg font-semibold">Admin Panel</div>
             <div className="text-sm text-neutral-500">HRIS Management</div>
           </div>
 
-          <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5">
+          <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4 space-y-5">
             {navGroups.map((group) => (
               <SidebarGroup key={group.label} group={group} />
             ))}
           </div>
 
-          <div className="border-t p-4">
+          <div className="border-t p-4 shrink-0 bg-white">
             <Button
               variant="outline"
               className="w-full justify-start rounded-xl"
@@ -264,8 +270,8 @@ export function AdminLayout({ children }: AdminLayoutProps) {
               className="absolute inset-0 bg-black/40"
               onClick={() => setMobileOpen(false)}
             />
-            <div className="absolute left-0 top-0 h-full w-72 bg-white shadow-xl">
-              <div className="flex items-center justify-between border-b px-4 py-4">
+            <div className="absolute left-0 top-0 h-full w-72 bg-white shadow-xl flex flex-col">
+              <div className="flex items-center justify-between border-b px-4 py-4 shrink-0">
                 <div>
                   <div className="text-lg font-semibold">Admin Panel</div>
                   <div className="text-sm text-neutral-500">HRIS Management</div>
@@ -279,13 +285,13 @@ export function AdminLayout({ children }: AdminLayoutProps) {
                 </button>
               </div>
 
-              <div className="space-y-5 overflow-y-auto px-4 py-4">
+              <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4 space-y-5">
                 {navGroups.map((group) => (
                   <SidebarGroup key={group.label} group={group} />
                 ))}
               </div>
 
-              <div className="border-t p-4">
+              <div className="border-t p-4 shrink-0 bg-white">
                 <Button
                   variant="outline"
                   className="w-full justify-start rounded-xl"
@@ -299,8 +305,8 @@ export function AdminLayout({ children }: AdminLayoutProps) {
           </div>
         )}
 
-        <div className="flex min-w-0 flex-1 flex-col">
-          <header className="sticky top-0 z-30 border-b bg-white/90 backdrop-blur">
+        <div className="flex min-w-0 flex-1 flex-col h-screen">
+          <header className="sticky top-0 z-30 border-b bg-white/90 backdrop-blur shrink-0">
             <div className="flex items-center justify-between px-4 py-3 lg:px-6">
               <div className="flex items-center gap-3">
                 <button
@@ -333,7 +339,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
             </div>
           </header>
 
-          <main className="flex-1 p-4 lg:p-6">
+          <main className="flex-1 min-h-0 overflow-y-auto p-4 lg:p-6">
             <div className="mx-auto max-w-7xl">{children}</div>
           </main>
         </div>
