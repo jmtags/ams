@@ -2,8 +2,10 @@ import { createContext, useContext, useState, useEffect, ReactNode } from 'react
 import type { User, LoginCredentials, AuthState } from '../lib/types';
 import { authService } from '../services/auth.service';
 
+type AppRole = "user" | "admin" | "hr" | "payroll"; // ✅ ADD THIS
+
 interface AuthContextType extends AuthState {
-  login: (credentials: LoginCredentials) => Promise<User>; // ✅ return User
+  login: (credentials: LoginCredentials) => Promise<User>;
   logout: () => Promise<void>;
   updateUser: (updates: Partial<User>) => void;
   isLoading: boolean;
@@ -25,7 +27,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (storedUser) {
       try {
         const user: User = JSON.parse(storedUser);
-        setAuthState({ user, isAuthenticated: true });
+
+        // ✅ ENSURE ROLE FALLBACK
+        const normalizedUser: User = {
+          ...user,
+          role: (user.role || 'user') as AppRole,
+        };
+
+        setAuthState({ user: normalizedUser, isAuthenticated: true });
       } catch (error) {
         console.error('Error parsing stored user:', error);
         localStorage.removeItem('user');
@@ -35,7 +44,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsLoading(false);
   }, []);
 
-  // ✅ FIXED LOGIN
   const login = async (credentials: LoginCredentials): Promise<User> => {
     setIsLoading(true);
 
@@ -46,10 +54,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw new Error('No user returned from login');
       }
 
-      localStorage.setItem('user', JSON.stringify(user));
-      setAuthState({ user, isAuthenticated: true });
+      // ✅ ENSURE ROLE SAFE
+      const normalizedUser: User = {
+        ...user,
+        role: (user.role || 'user') as AppRole,
+      };
 
-      return user; // ✅ IMPORTANT: return user
+      localStorage.setItem('user', JSON.stringify(normalizedUser));
+      setAuthState({ user: normalizedUser, isAuthenticated: true });
+
+      return normalizedUser;
     } catch (error) {
       console.error('Login error:', error);
       throw error;
@@ -66,7 +80,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const updateUser = (updates: Partial<User>) => {
     if (authState.user) {
-      const updatedUser: User = { ...authState.user, ...updates };
+      const updatedUser: User = {
+        ...authState.user,
+        ...updates,
+        role: (updates.role || authState.user.role) as AppRole, // ✅ SAFE ROLE UPDATE
+      };
+
       localStorage.setItem('user', JSON.stringify(updatedUser));
       setAuthState({ user: updatedUser, isAuthenticated: true });
     }

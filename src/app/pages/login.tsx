@@ -27,11 +27,11 @@ export function LoginPage() {
         throw new Error('Login failed');
       }
 
-      if (user.role === 'admin') {
-        navigate('/admin');
-      } else {
-        navigate('/dashboard');
-      }
+if (['admin', 'hr', 'payroll'].includes(user.role)) {
+  navigate('/admin');
+} else {
+  navigate('/dashboard');
+}
 
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');

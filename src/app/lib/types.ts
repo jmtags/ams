@@ -4,7 +4,7 @@ export type User = {
   name: string | null;
   email: string | null;
   department: string | null;
-  role: "user" | "admin" | null;
+  role: "user" | "admin" | "hr" | "payroll" ;
   shift_id?: string | null;
   shift_name?: string | null;
   sss?: string | null;

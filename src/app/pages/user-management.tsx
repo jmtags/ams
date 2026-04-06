@@ -53,7 +53,7 @@ type UserFormData = {
   email: string;
   password: string;
   department: string;
-  role: "user" | "admin";
+  role: "user" | "admin" | "hr" | "payroll";
   shift_id: string;
   sss: string;
   pagibig: string;
@@ -595,14 +595,16 @@ export function UserManagementPage() {
         onChange={(e) =>
           setFormData((prev) => ({
             ...prev,
-            role: e.target.value as "user" | "admin",
+            role: e.target.value as "user" | "admin" | "hr" | "payroll",
           }))
         }
         required
         disabled={isLoading}
       >
-        <option value="user">User</option>
-        <option value="admin">Admin</option>
+          <option value="user">User</option>
+          <option value="admin">Admin</option>
+          <option value="hr">HR</option>
+          <option value="payroll">Payroll</option>
       </Select>
 
       <Select

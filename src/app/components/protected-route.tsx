@@ -2,12 +2,19 @@ import { ReactNode } from 'react';
 import { Navigate } from 'react-router';
 import { useAuth } from '../hooks/useAuth';
 
+type AppRole = "user" | "admin" | "hr" | "payroll";
+
 interface ProtectedRouteProps {
   children: ReactNode;
   requireAdmin?: boolean;
+  allowedRoles?: AppRole[]; // ✅ NEW
 }
 
-export function ProtectedRoute({ children, requireAdmin = false }: ProtectedRouteProps) {
+export function ProtectedRoute({
+  children,
+  requireAdmin = false,
+  allowedRoles,
+}: ProtectedRouteProps) {
   const { isAuthenticated, user, isLoading } = useAuth();
 
   if (isLoading) {
@@ -22,7 +29,13 @@ export function ProtectedRoute({ children, requireAdmin = false }: ProtectedRout
     return <Navigate to="/login" replace />;
   }
 
+  // ✅ OLD ADMIN CHECK
   if (requireAdmin && user?.role !== 'admin') {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  // ✅ NEW ROLE CHECK
+  if (allowedRoles && !allowedRoles.includes(user?.role as AppRole)) {
     return <Navigate to="/dashboard" replace />;
   }
 

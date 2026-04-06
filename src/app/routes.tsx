@@ -58,15 +58,17 @@ export const router = createBrowserRouter([
     ),
   },
 
-  // ADMIN ROUTES
+  // ADMIN / STAFF PORTAL ENTRY
   {
     path: "/admin",
     element: <Navigate to="/admin/dashboard" replace />,
   },
+
+  // OVERVIEW
   {
     path: "/admin/dashboard",
     element: (
-      <ProtectedRoute requireAdmin>
+      <ProtectedRoute allowedRoles={["admin", "hr", "payroll"]}>
         <AdminDashboardPage />
       </ProtectedRoute>
     ),
@@ -74,7 +76,7 @@ export const router = createBrowserRouter([
   {
     path: "/admin/reports",
     element: (
-      <ProtectedRoute requireAdmin>
+      <ProtectedRoute allowedRoles={["admin", "hr", "payroll"]}>
         <AdminReportsPage />
       </ProtectedRoute>
     ),
@@ -84,7 +86,7 @@ export const router = createBrowserRouter([
   {
     path: "/admin/users",
     element: (
-      <ProtectedRoute requireAdmin>
+      <ProtectedRoute allowedRoles={["admin", "hr", "payroll"]}>
         <UserManagementPage />
       </ProtectedRoute>
     ),
@@ -92,7 +94,7 @@ export const router = createBrowserRouter([
   {
     path: "/admin/departments",
     element: (
-      <ProtectedRoute requireAdmin>
+      <ProtectedRoute allowedRoles={["admin", "hr", "payroll"]}>
         <DepartmentManagementPage />
       </ProtectedRoute>
     ),
@@ -100,7 +102,7 @@ export const router = createBrowserRouter([
   {
     path: "/admin/locations",
     element: (
-      <ProtectedRoute requireAdmin>
+      <ProtectedRoute allowedRoles={["admin", "hr", "payroll"]}>
         <LocationManagementPage />
       </ProtectedRoute>
     ),
@@ -108,7 +110,7 @@ export const router = createBrowserRouter([
   {
     path: "/admin/shifts",
     element: (
-      <ProtectedRoute requireAdmin>
+      <ProtectedRoute allowedRoles={["admin", "hr", "payroll"]}>
         <ShiftManagementPage />
       </ProtectedRoute>
     ),
@@ -118,7 +120,7 @@ export const router = createBrowserRouter([
   {
     path: "/admin/manual-attendance",
     element: (
-      <ProtectedRoute requireAdmin>
+      <ProtectedRoute allowedRoles={["admin", "hr"]}>
         <ManualAttendanceManagementPage />
       </ProtectedRoute>
     ),
@@ -126,7 +128,7 @@ export const router = createBrowserRouter([
   {
     path: "/admin/attendance-adjustments",
     element: (
-      <ProtectedRoute requireAdmin>
+      <ProtectedRoute allowedRoles={["admin", "hr"]}>
         <AttendanceAdjustmentsManagementPage />
       </ProtectedRoute>
     ),
@@ -134,7 +136,7 @@ export const router = createBrowserRouter([
   {
     path: "/admin/holidays",
     element: (
-      <ProtectedRoute requireAdmin>
+      <ProtectedRoute allowedRoles={["admin", "hr"]}>
         <ManageHolidaysPage />
       </ProtectedRoute>
     ),
@@ -142,7 +144,7 @@ export const router = createBrowserRouter([
   {
     path: "/admin/leave-types",
     element: (
-      <ProtectedRoute requireAdmin>
+      <ProtectedRoute allowedRoles={["admin", "hr"]}>
         <ManageLeaveTypesPage />
       </ProtectedRoute>
     ),
@@ -150,7 +152,7 @@ export const router = createBrowserRouter([
   {
     path: "/admin/leave-balances",
     element: (
-      <ProtectedRoute requireAdmin>
+      <ProtectedRoute allowedRoles={["admin", "hr"]}>
         <ManageLeaveBalancesPage />
       </ProtectedRoute>
     ),
@@ -158,7 +160,7 @@ export const router = createBrowserRouter([
   {
     path: "/admin/leave-requests",
     element: (
-      <ProtectedRoute requireAdmin>
+      <ProtectedRoute allowedRoles={["admin", "hr"]}>
         <ManageLeaveRequestsPage />
       </ProtectedRoute>
     ),
@@ -168,7 +170,7 @@ export const router = createBrowserRouter([
   {
     path: "/admin/payroll-periods",
     element: (
-      <ProtectedRoute requireAdmin>
+      <ProtectedRoute allowedRoles={["admin", "payroll"]}>
         <AdminPayrollPeriodsPage />
       </ProtectedRoute>
     ),
@@ -176,7 +178,7 @@ export const router = createBrowserRouter([
   {
     path: "/admin/employee-compensation",
     element: (
-      <ProtectedRoute requireAdmin>
+      <ProtectedRoute allowedRoles={["admin", "payroll"]}>
         <AdminEmployeeCompensationPage />
       </ProtectedRoute>
     ),
@@ -184,7 +186,7 @@ export const router = createBrowserRouter([
   {
     path: "/admin/payroll-generate",
     element: (
-      <ProtectedRoute requireAdmin>
+      <ProtectedRoute allowedRoles={["admin", "payroll"]}>
         <AdminPayrollGeneratePage />
       </ProtectedRoute>
     ),
@@ -192,7 +194,7 @@ export const router = createBrowserRouter([
   {
     path: "/admin/payroll-records",
     element: (
-      <ProtectedRoute requireAdmin>
+      <ProtectedRoute allowedRoles={["admin", "payroll"]}>
         <AdminPayrollRecordsPage />
       </ProtectedRoute>
     ),
@@ -200,7 +202,7 @@ export const router = createBrowserRouter([
   {
     path: "/admin/payroll-records/:id",
     element: (
-      <ProtectedRoute requireAdmin>
+      <ProtectedRoute allowedRoles={["admin", "payroll"]}>
         <AdminPayrollDetailsPage />
       </ProtectedRoute>
     ),
@@ -208,7 +210,7 @@ export const router = createBrowserRouter([
   {
     path: "/admin/payroll-adjustments",
     element: (
-      <ProtectedRoute requireAdmin>
+      <ProtectedRoute allowedRoles={["admin", "payroll"]}>
         <AdminPayrollAdjustmentsPage />
       </ProtectedRoute>
     ),
@@ -216,7 +218,7 @@ export const router = createBrowserRouter([
   {
     path: "/admin/recurring-deductions",
     element: (
-      <ProtectedRoute requireAdmin>
+      <ProtectedRoute allowedRoles={["admin", "payroll"]}>
         <AdminRecurringDeductionsPage />
       </ProtectedRoute>
     ),
@@ -224,7 +226,7 @@ export const router = createBrowserRouter([
   {
     path: "/admin/payroll-settings",
     element: (
-      <ProtectedRoute requireAdmin>
+      <ProtectedRoute allowedRoles={["admin", "payroll"]}>
         <AdminPayrollSettingsPage />
       </ProtectedRoute>
     ),

@@ -1,4 +1,4 @@
-import { ReactNode, useMemo, useState } from "react";
+import { ReactNode, useEffect, useMemo, useState } from "react";
 import { NavLink, useLocation } from "react-router";
 import {
   LayoutDashboard,
@@ -21,8 +21,12 @@ import {
 } from "lucide-react";
 
 import { Button } from "../components/ui/button";
+import { Badge } from "../components/ui/badge";
 import { cn } from "../lib/utils";
 import { supabase } from "../lib/supabase";
+import { useAuth } from "../hooks/useAuth";
+
+type AppRole = "user" | "admin" | "hr" | "payroll";
 
 type AdminLayoutProps = {
   children: ReactNode;
@@ -32,16 +36,19 @@ type NavItem = {
   label: string;
   to: string;
   icon: ReactNode;
+  badgeKey?: "leaveRequests" | "attendanceAdjustments";
 };
 
 type NavGroup = {
   label: string;
+  roles: AppRole[];
   items: NavItem[];
 };
 
 const navGroups: NavGroup[] = [
   {
     label: "Overview",
+    roles: ["admin", "hr", "payroll"],
     items: [
       {
         label: "Dashboard",
@@ -57,6 +64,7 @@ const navGroups: NavGroup[] = [
   },
   {
     label: "Organization",
+    roles: ["admin", "hr", "payroll"],
     items: [
       {
         label: "Users",
@@ -82,6 +90,7 @@ const navGroups: NavGroup[] = [
   },
   {
     label: "Attendance & Leave",
+    roles: ["admin", "hr"],
     items: [
       {
         label: "Manual Attendance",
@@ -92,6 +101,7 @@ const navGroups: NavGroup[] = [
         label: "Attendance Adjustments",
         to: "/admin/attendance-adjustments",
         icon: <ClipboardCheck className="h-4 w-4" />,
+        badgeKey: "attendanceAdjustments",
       },
       {
         label: "Holidays",
@@ -112,11 +122,13 @@ const navGroups: NavGroup[] = [
         label: "Leave Requests",
         to: "/admin/leave-requests",
         icon: <FileText className="h-4 w-4" />,
+        badgeKey: "leaveRequests",
       },
     ],
   },
   {
     label: "Payroll",
+    roles: ["admin", "payroll"],
     items: [
       {
         label: "Payroll Periods",
@@ -157,6 +169,7 @@ const navGroups: NavGroup[] = [
   },
   {
     label: "System",
+    roles: ["admin"],
     items: [
       {
         label: "Settings",
@@ -167,7 +180,28 @@ const navGroups: NavGroup[] = [
   },
 ];
 
-function SidebarLink({ item }: { item: NavItem }) {
+type PendingCounts = {
+  leaveRequests: number;
+  attendanceAdjustments: number;
+};
+
+function NotificationBubble({ count }: { count: number }) {
+  if (!count || count <= 0) return null;
+
+  return (
+    <span className="ml-auto inline-flex min-w-[20px] h-5 items-center justify-center rounded-full bg-red-600 px-1.5 text-[11px] font-semibold text-white">
+      {count > 99 ? "99+" : count}
+    </span>
+  );
+}
+
+function SidebarLink({
+  item,
+  count,
+}: {
+  item: NavItem;
+  count?: number;
+}) {
   return (
     <NavLink
       to={item.to}
@@ -182,16 +216,19 @@ function SidebarLink({ item }: { item: NavItem }) {
       }
     >
       {item.icon}
-      <span>{item.label}</span>
+      <span className="truncate">{item.label}</span>
+      <NotificationBubble count={count ?? 0} />
     </NavLink>
   );
 }
 
 function SidebarGroup({
   group,
+  badgeCounts,
   defaultOpen = true,
 }: {
   group: NavGroup;
+  badgeCounts: PendingCounts;
   defaultOpen?: boolean;
 }) {
   const location = useLocation();
@@ -220,9 +257,16 @@ function SidebarGroup({
 
       {open && (
         <div className="space-y-1">
-          {group.items.map((item) => (
-            <SidebarLink key={item.to} item={item} />
-          ))}
+          {group.items.map((item) => {
+            const count =
+              item.badgeKey === "leaveRequests"
+                ? badgeCounts.leaveRequests
+                : item.badgeKey === "attendanceAdjustments"
+                ? badgeCounts.attendanceAdjustments
+                : 0;
+
+            return <SidebarLink key={item.to} item={item} count={count} />;
+          })}
         </div>
       )}
     </div>
@@ -231,6 +275,97 @@ function SidebarGroup({
 
 export function AdminLayout({ children }: AdminLayoutProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [badgeCounts, setBadgeCounts] = useState<PendingCounts>({
+    leaveRequests: 0,
+    attendanceAdjustments: 0,
+  });
+  const { user } = useAuth();
+
+  const currentRole = (user?.role ?? "user") as AppRole;
+
+  const visibleGroups = navGroups.filter((group) =>
+    group.roles.includes(currentRole)
+  );
+
+  const loadPendingCounts = async () => {
+    try {
+      const requestsToLoad: Promise<any>[] = [];
+
+      const shouldLoadLeaveRequests = ["admin", "hr"].includes(currentRole);
+      const shouldLoadAttendanceAdjustments = ["admin", "hr"].includes(currentRole);
+
+      if (shouldLoadLeaveRequests) {
+        requestsToLoad.push(
+          supabase
+            .from("leave_requests")
+            .select("id", { count: "exact", head: true })
+            .eq("status", "pending")
+        );
+      } else {
+        requestsToLoad.push(Promise.resolve({ count: 0 }));
+      }
+
+      if (shouldLoadAttendanceAdjustments) {
+        requestsToLoad.push(
+          supabase
+            .from("attendance_adjustments")
+            .select("id", { count: "exact", head: true })
+            .eq("status", "pending")
+        );
+      } else {
+        requestsToLoad.push(Promise.resolve({ count: 0 }));
+      }
+
+      const [leaveRequestsResult, attendanceAdjustmentsResult] =
+        await Promise.all(requestsToLoad);
+
+      setBadgeCounts({
+        leaveRequests:
+          "count" in leaveRequestsResult ? leaveRequestsResult.count ?? 0 : 0,
+        attendanceAdjustments:
+          "count" in attendanceAdjustmentsResult
+            ? attendanceAdjustmentsResult.count ?? 0
+            : 0,
+      });
+    } catch (error) {
+      console.error("Error loading sidebar pending counts:", error);
+    }
+  };
+
+  useEffect(() => {
+    loadPendingCounts();
+  }, [currentRole]);
+
+  useEffect(() => {
+    if (!["admin", "hr"].includes(currentRole)) return;
+
+    const leaveChannel = supabase
+      .channel("sidebar-leave-requests-count")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "leave_requests" },
+        () => {
+          loadPendingCounts();
+        }
+      )
+      .subscribe();
+
+    const adjustmentChannel = supabase
+      .channel("sidebar-attendance-adjustments-count")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "attendance_adjustments" },
+        () => {
+          loadPendingCounts();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(leaveChannel);
+      supabase.removeChannel(adjustmentChannel);
+    };
+  }, [currentRole]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -247,8 +382,12 @@ export function AdminLayout({ children }: AdminLayoutProps) {
           </div>
 
           <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4 space-y-5">
-            {navGroups.map((group) => (
-              <SidebarGroup key={group.label} group={group} />
+            {visibleGroups.map((group) => (
+              <SidebarGroup
+                key={group.label}
+                group={group}
+                badgeCounts={badgeCounts}
+              />
             ))}
           </div>
 
@@ -286,8 +425,12 @@ export function AdminLayout({ children }: AdminLayoutProps) {
               </div>
 
               <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4 space-y-5">
-                {navGroups.map((group) => (
-                  <SidebarGroup key={group.label} group={group} />
+                {visibleGroups.map((group) => (
+                  <SidebarGroup
+                    key={group.label}
+                    group={group}
+                    badgeCounts={badgeCounts}
+                  />
                 ))}
               </div>
 
@@ -328,6 +471,21 @@ export function AdminLayout({ children }: AdminLayoutProps) {
               </div>
 
               <div className="flex items-center gap-2">
+                {badgeCounts.leaveRequests > 0 || badgeCounts.attendanceAdjustments > 0 ? (
+                  <div className="hidden md:flex items-center gap-2">
+                    {badgeCounts.leaveRequests > 0 && (
+                      <Badge variant="warning">
+                        {badgeCounts.leaveRequests} Pending Leave
+                      </Badge>
+                    )}
+                    {badgeCounts.attendanceAdjustments > 0 && (
+                      <Badge variant="warning">
+                        {badgeCounts.attendanceAdjustments} Pending Adjustments
+                      </Badge>
+                    )}
+                  </div>
+                ) : null}
+
                 <Button
                   variant="outline"
                   className="hidden rounded-xl md:inline-flex"
