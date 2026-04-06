@@ -513,8 +513,11 @@ export function UserManagementPage() {
       </div>
 
       <Dialog open={isDialogOpen} onOpenChange={(open) => !open && handleCloseDialog()}>
-        <DialogContent onClose={handleCloseDialog}>
-          <DialogHeader>
+        <DialogContent
+  onClose={handleCloseDialog}
+  className="w-full max-w-2xl max-h-[90vh] overflow-hidden p-0 flex flex-col"
+>
+          <DialogHeader className="px-6 pt-6 pb-4 border-b">
             <DialogTitle>{editingUser ? "Edit User" : "Add New User"}</DialogTitle>
             <DialogDescription>
               {editingUser
@@ -523,170 +526,170 @@ export function UserManagementPage() {
             </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={handleSubmit}>
-            <DialogBody>
-              {error && (
-                <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
-                  {error}
-                </div>
-              )}
+<form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0">
+  <div className="flex-1 overflow-y-auto px-6 py-4 min-h-0">
+    {error && (
+      <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+        {error}
+      </div>
+    )}
 
-              <div className="space-y-4">
-                <Input
-                  label="Full Name"
-                  value={formData.name}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, name: e.target.value }))
-                  }
-                  required
-                  disabled={isLoading}
-                />
+    <div className="space-y-4">
+      <Input
+        label="Full Name"
+        value={formData.name}
+        onChange={(e) =>
+          setFormData((prev) => ({ ...prev, name: e.target.value }))
+        }
+        required
+        disabled={isLoading}
+      />
 
-                <Input
-                  label="Email"
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, email: e.target.value }))
-                  }
-                  required
-                  disabled={isLoading}
-                />
+      <Input
+        label="Email"
+        type="email"
+        value={formData.email}
+        onChange={(e) =>
+          setFormData((prev) => ({ ...prev, email: e.target.value }))
+        }
+        required
+        disabled={isLoading}
+      />
 
-                <Input
-                  label={editingUser ? "New Password (Optional)" : "Password"}
-                  type="password"
-                  value={formData.password}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, password: e.target.value }))
-                  }
-                  required={!editingUser}
-                  disabled={isLoading}
-                  placeholder={
-                    editingUser ? "Leave blank to keep current password" : ""
-                  }
-                />
+      <Input
+        label={editingUser ? "New Password (Optional)" : "Password"}
+        type="password"
+        value={formData.password}
+        onChange={(e) =>
+          setFormData((prev) => ({ ...prev, password: e.target.value }))
+        }
+        required={!editingUser}
+        disabled={isLoading}
+        placeholder={
+          editingUser ? "Leave blank to keep current password" : ""
+        }
+      />
 
-                <Select
-                  label="Department"
-                  value={formData.department}
-                  onChange={(e) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      department: e.target.value,
-                    }))
-                  }
-                  disabled={isLoading}
-                >
-                  <option value="">Select Department</option>
-                  {departments.map((dept) => (
-                    <option key={dept.id} value={dept.name}>
-                      {dept.name}
-                    </option>
-                  ))}
-                </Select>
+      <Select
+        label="Department"
+        value={formData.department}
+        onChange={(e) =>
+          setFormData((prev) => ({
+            ...prev,
+            department: e.target.value,
+          }))
+        }
+        disabled={isLoading}
+      >
+        <option value="">Select Department</option>
+        {departments.map((dept) => (
+          <option key={dept.id} value={dept.name}>
+            {dept.name}
+          </option>
+        ))}
+      </Select>
 
-                <Select
-                  label="Role"
-                  value={formData.role}
-                  onChange={(e) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      role: e.target.value as "user" | "admin",
-                    }))
-                  }
-                  required
-                  disabled={isLoading}
-                >
-                  <option value="user">User</option>
-                  <option value="admin">Admin</option>
-                </Select>
+      <Select
+        label="Role"
+        value={formData.role}
+        onChange={(e) =>
+          setFormData((prev) => ({
+            ...prev,
+            role: e.target.value as "user" | "admin",
+          }))
+        }
+        required
+        disabled={isLoading}
+      >
+        <option value="user">User</option>
+        <option value="admin">Admin</option>
+      </Select>
 
-                <Select
-                  label="Assigned Shift"
-                  value={formData.shift_id}
-                  onChange={(e) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      shift_id: e.target.value,
-                    }))
-                  }
-                  disabled={isLoading}
-                >
-                  <option value="">Select Shift</option>
-                  {shifts.map((shift) => (
-                    <option key={shift.id} value={shift.id}>
-                      {shift.name}
-                      {shift.locations?.name ? ` - ${shift.locations.name}` : ""}
-                      {" | "}
-                      {shift.start_time?.slice(0, 5)} - {shift.end_time?.slice(0, 5)}
-                    </option>
-                  ))}
-                </Select>
+      <Select
+        label="Assigned Shift"
+        value={formData.shift_id}
+        onChange={(e) =>
+          setFormData((prev) => ({
+            ...prev,
+            shift_id: e.target.value,
+          }))
+        }
+        disabled={isLoading}
+      >
+        <option value="">Select Shift</option>
+        {shifts.map((shift) => (
+          <option key={shift.id} value={shift.id}>
+            {shift.name}
+            {shift.locations?.name ? ` - ${shift.locations.name}` : ""}
+            {" | "}
+            {shift.start_time?.slice(0, 5)} - {shift.end_time?.slice(0, 5)}
+          </option>
+        ))}
+      </Select>
 
-                <Input
-                  label="SSS Number"
-                  value={formData.sss}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, sss: e.target.value }))
-                  }
-                  disabled={isLoading}
-                />
+      <Input
+        label="SSS Number"
+        value={formData.sss}
+        onChange={(e) =>
+          setFormData((prev) => ({ ...prev, sss: e.target.value }))
+        }
+        disabled={isLoading}
+      />
 
-                <Input
-                  label="Pag-IBIG Number"
-                  value={formData.pagibig}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, pagibig: e.target.value }))
-                  }
-                  disabled={isLoading}
-                />
+      <Input
+        label="Pag-IBIG Number"
+        value={formData.pagibig}
+        onChange={(e) =>
+          setFormData((prev) => ({ ...prev, pagibig: e.target.value }))
+        }
+        disabled={isLoading}
+      />
 
-                <Input
-                  label="PhilHealth Number"
-                  value={formData.philhealth}
-                  onChange={(e) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      philhealth: e.target.value,
-                    }))
-                  }
-                  disabled={isLoading}
-                />
+      <Input
+        label="PhilHealth Number"
+        value={formData.philhealth}
+        onChange={(e) =>
+          setFormData((prev) => ({
+            ...prev,
+            philhealth: e.target.value,
+          }))
+        }
+        disabled={isLoading}
+      />
 
-                <Input
-                  label="ATM Number"
-                  value={formData.atm_number}
-                  onChange={(e) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      atm_number: e.target.value,
-                    }))
-                  }
-                  disabled={isLoading}
-                />
-              </div>
-            </DialogBody>
+      <Input
+        label="ATM Number"
+        value={formData.atm_number}
+        onChange={(e) =>
+          setFormData((prev) => ({
+            ...prev,
+            atm_number: e.target.value,
+          }))
+        }
+        disabled={isLoading}
+      />
+    </div>
+  </div>
 
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleCloseDialog}
-                disabled={isLoading}
-              >
-                Cancel
-              </Button>
+  <DialogFooter className="px-6 py-4 border-t bg-white shrink-0">
+    <Button
+      type="button"
+      variant="outline"
+      onClick={handleCloseDialog}
+      disabled={isLoading}
+    >
+      Cancel
+    </Button>
 
-              <Button type="submit" disabled={isLoading}>
-                {isLoading
-                  ? "Saving..."
-                  : editingUser
-                  ? "Update User"
-                  : "Create User"}
-              </Button>
-            </DialogFooter>
-          </form>
+    <Button type="submit" disabled={isLoading}>
+      {isLoading
+        ? "Saving..."
+        : editingUser
+        ? "Update User"
+        : "Create User"}
+    </Button>
+  </DialogFooter>
+</form>
         </DialogContent>
       </Dialog>
 
