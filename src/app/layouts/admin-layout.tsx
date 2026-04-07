@@ -13,6 +13,7 @@ import {
   FileText,
   ClipboardPenLine,
   ClipboardCheck,
+  ClipboardList,
   ChevronDown,
   Menu,
   X,
@@ -90,7 +91,7 @@ const navGroups: NavGroup[] = [
   },
   {
     label: "Attendance & Leave",
-    roles: ["admin", "hr"],
+    roles: ["admin", "hr", "payroll"],
     items: [
       {
         label: "Manual Attendance",
@@ -102,6 +103,11 @@ const navGroups: NavGroup[] = [
         to: "/admin/attendance-adjustments",
         icon: <ClipboardCheck className="h-4 w-4" />,
         badgeKey: "attendanceAdjustments",
+      },
+      {
+        label: "Activity Logs",
+        to: "/admin/activity-logs",
+        icon: <ClipboardList className="h-4 w-4" />,
       },
       {
         label: "Holidays",
@@ -128,7 +134,7 @@ const navGroups: NavGroup[] = [
   },
   {
     label: "Payroll",
-    roles: ["admin", "payroll"],
+    roles: ["admin", "hr", "payroll"],
     items: [
       {
         label: "Payroll Periods",
@@ -169,7 +175,7 @@ const navGroups: NavGroup[] = [
   },
   {
     label: "System",
-    roles: ["admin"],
+    roles: ["admin", "hr", "payroll"],
     items: [
       {
         label: "Settings",
@@ -291,8 +297,8 @@ export function AdminLayout({ children }: AdminLayoutProps) {
     try {
       const requestsToLoad: Promise<any>[] = [];
 
-      const shouldLoadLeaveRequests = ["admin", "hr"].includes(currentRole);
-      const shouldLoadAttendanceAdjustments = ["admin", "hr"].includes(currentRole);
+      const shouldLoadLeaveRequests = ["admin", "hr", "payroll"].includes(currentRole);
+      const shouldLoadAttendanceAdjustments = ["admin", "hr", "payroll"].includes(currentRole);
 
       if (shouldLoadLeaveRequests) {
         requestsToLoad.push(
@@ -337,7 +343,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
   }, [currentRole]);
 
   useEffect(() => {
-    if (!["admin", "hr"].includes(currentRole)) return;
+    if (!["admin", "hr", "payroll"].includes(currentRole)) return;
 
     const leaveChannel = supabase
       .channel("sidebar-leave-requests-count")
