@@ -15,6 +15,8 @@ export type Shift = {
   overtime_after_minutes: number;
   is_active: boolean;
   created_at: string;
+  require_activity_log_before_clock_out: boolean;
+  min_activity_entries: number;
   locations?: {
     id: string;
     name: string;
@@ -29,6 +31,8 @@ export type ShiftFormData = {
   grace_minutes: number;
   overtime_after_minutes: number;
   is_active: boolean;
+  require_activity_log_before_clock_out: boolean;
+  min_activity_entries: number;
 };
 
 export const shiftService = {
@@ -55,6 +59,8 @@ export const shiftService = {
         overtime_after_minutes,
         is_active,
         created_at,
+        require_activity_log_before_clock_out,
+        min_activity_entries,
         locations:location_id (
           id,
           name
@@ -75,6 +81,9 @@ export const shiftService = {
       grace_minutes: Number(form.grace_minutes),
       overtime_after_minutes: Number(form.overtime_after_minutes),
       is_active: form.is_active,
+      require_activity_log_before_clock_out:
+        !!form.require_activity_log_before_clock_out,
+      min_activity_entries: Number(form.min_activity_entries || 1),
     };
 
     const { data, error } = await supabase
@@ -96,6 +105,9 @@ export const shiftService = {
       grace_minutes: Number(form.grace_minutes),
       overtime_after_minutes: Number(form.overtime_after_minutes),
       is_active: form.is_active,
+      require_activity_log_before_clock_out:
+        !!form.require_activity_log_before_clock_out,
+      min_activity_entries: Number(form.min_activity_entries || 1),
     };
 
     const { data, error } = await supabase

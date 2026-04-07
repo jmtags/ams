@@ -15,10 +15,11 @@ const initialForm: ShiftFormData = {
   grace_minutes: 15,
   overtime_after_minutes: 0,
   is_active: true,
+  require_activity_log_before_clock_out: false,
+  min_activity_entries: 1,
 };
 
 export default function ShiftManagementPage() {
-  
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
   const [loading, setLoading] = useState(false);
@@ -101,6 +102,9 @@ export default function ShiftManagementPage() {
       grace_minutes: shift.grace_minutes ?? 0,
       overtime_after_minutes: shift.overtime_after_minutes ?? 0,
       is_active: shift.is_active,
+      require_activity_log_before_clock_out:
+        !!shift.require_activity_log_before_clock_out,
+      min_activity_entries: shift.min_activity_entries ?? 1,
     });
     setIsModalOpen(true);
   }
@@ -130,6 +134,12 @@ export default function ShiftManagementPage() {
     if (form.grace_minutes < 0) return "Grace minutes cannot be negative.";
     if (form.overtime_after_minutes < 0) {
       return "Overtime after minutes cannot be negative.";
+    }
+    if (
+      form.require_activity_log_before_clock_out &&
+      form.min_activity_entries < 1
+    ) {
+      return "Minimum activity entries must be at least 1.";
     }
     return null;
   }
@@ -194,288 +204,329 @@ export default function ShiftManagementPage() {
   }
 
   return (
-        <AdminLayout>
- 
-    <div className="p-6 max-w-7xl mx-auto">
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
-        <div>
-          <h1 className="text-2xl font-bold">Shift Management</h1>
-          <p className="text-sm text-gray-600">
-            Add, edit, delete, and manage work shifts.
-          </p>
-        </div>
-
-        <button
-          onClick={openAddModal}
-          className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700"
-        >
-          + Add Shift
-        </button>
-      </div>
-
-      <div className="bg-white rounded-xl shadow p-4 mb-6 border">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <input
-            type="text"
-            placeholder="Search by shift or location..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full border rounded-lg px-3 py-2"
-          />
-
-          <select
-            value={selectedLocation}
-            onChange={(e) => setSelectedLocation(e.target.value)}
-            className="w-full border rounded-lg px-3 py-2"
-          >
-            <option value="">All Locations</option>
-            {locations.map((location) => (
-              <option key={location.id} value={location.id}>
-                {location.name}
-              </option>
-            ))}
-          </select>
+    <AdminLayout>
+      <div className="p-6 max-w-7xl mx-auto">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+          <div>
+            <h1 className="text-2xl font-bold">Shift Management</h1>
+            <p className="text-sm text-gray-600">
+              Add, edit, delete, and manage work shifts.
+            </p>
+          </div>
 
           <button
-            onClick={refreshShifts}
-            className="w-full border rounded-lg px-3 py-2 hover:bg-gray-50"
+            onClick={openAddModal}
+            className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700"
           >
-            Refresh
+            + Add Shift
           </button>
         </div>
-      </div>
 
-      <div className="bg-white rounded-xl shadow border overflow-hidden">
-        {loading ? (
-          <div className="p-6 text-center text-gray-500">Loading shifts...</div>
-        ) : error ? (
-          <div className="p-6 text-center text-red-600">{error}</div>
-        ) : filteredShifts.length === 0 ? (
-          <div className="p-6 text-center text-gray-500">
-            No shifts found.
+        <div className="bg-white rounded-xl shadow p-4 mb-6 border">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <input
+              type="text"
+              placeholder="Search by shift or location..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full border rounded-lg px-3 py-2"
+            />
+
+            <select
+              value={selectedLocation}
+              onChange={(e) => setSelectedLocation(e.target.value)}
+              className="w-full border rounded-lg px-3 py-2"
+            >
+              <option value="">All Locations</option>
+              {locations.map((location) => (
+                <option key={location.id} value={location.id}>
+                  {location.name}
+                </option>
+              ))}
+            </select>
+
+            <button
+              onClick={refreshShifts}
+              className="w-full border rounded-lg px-3 py-2 hover:bg-gray-50"
+            >
+              Refresh
+            </button>
           </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-100 text-left">
-                <tr>
-                  <th className="px-4 py-3">Shift Name</th>
-                  <th className="px-4 py-3">Location</th>
-                  <th className="px-4 py-3">Start</th>
-                  <th className="px-4 py-3">End</th>
-                  <th className="px-4 py-3">Grace</th>
-                  <th className="px-4 py-3">OT After</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3 text-center">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredShifts.map((shift) => (
-                  <tr key={shift.id} className="border-t">
-                    <td className="px-4 py-3 font-medium">{shift.name}</td>
-                    <td className="px-4 py-3">
-                      {shift.locations?.name || "-"}
-                    </td>
-                    <td className="px-4 py-3">
-                      {shift.start_time?.slice(0, 5)}
-                    </td>
-                    <td className="px-4 py-3">
-                      {shift.end_time?.slice(0, 5)}
-                    </td>
-                    <td className="px-4 py-3">{shift.grace_minutes} min</td>
-                    <td className="px-4 py-3">
-                      {shift.overtime_after_minutes} min
-                    </td>
-                    <td className="px-4 py-3">
-                      <button
-                        onClick={() => handleToggleActive(shift)}
-                        className={`px-3 py-1 rounded-full text-xs font-medium ${
-                          shift.is_active
-                            ? "bg-green-100 text-green-700"
-                            : "bg-gray-200 text-gray-700"
-                        }`}
-                      >
-                        {shift.is_active ? "Active" : "Inactive"}
-                      </button>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center justify-center gap-2">
-                        <button
-                          onClick={() => openEditModal(shift)}
-                          className="px-3 py-1 rounded-md border hover:bg-gray-50"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => handleDeleteShift(shift.id)}
-                          className="px-3 py-1 rounded-md border border-red-300 text-red-600 hover:bg-red-50"
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </td>
+        </div>
+
+        <div className="bg-white rounded-xl shadow border overflow-hidden">
+          {loading ? (
+            <div className="p-6 text-center text-gray-500">Loading shifts...</div>
+          ) : error ? (
+            <div className="p-6 text-center text-red-600">{error}</div>
+          ) : filteredShifts.length === 0 ? (
+            <div className="p-6 text-center text-gray-500">
+              No shifts found.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-100 text-left">
+                  <tr>
+                    <th className="px-4 py-3">Shift Name</th>
+                    <th className="px-4 py-3">Location</th>
+                    <th className="px-4 py-3">Start</th>
+                    <th className="px-4 py-3">End</th>
+                    <th className="px-4 py-3">Grace</th>
+                    <th className="px-4 py-3">OT After</th>
+                    <th className="px-4 py-3">Activity Log</th>
+                    <th className="px-4 py-3">Status</th>
+                    <th className="px-4 py-3 text-center">Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {filteredShifts.map((shift) => (
+                    <tr key={shift.id} className="border-t">
+                      <td className="px-4 py-3 font-medium">{shift.name}</td>
+                      <td className="px-4 py-3">
+                        {shift.locations?.name || "-"}
+                      </td>
+                      <td className="px-4 py-3">
+                        {shift.start_time?.slice(0, 5)}
+                      </td>
+                      <td className="px-4 py-3">
+                        {shift.end_time?.slice(0, 5)}
+                      </td>
+                      <td className="px-4 py-3">{shift.grace_minutes} min</td>
+                      <td className="px-4 py-3">
+                        {shift.overtime_after_minutes} min
+                      </td>
+                      <td className="px-4 py-3">
+                        {shift.require_activity_log_before_clock_out
+                          ? `Required (${shift.min_activity_entries})`
+                          : "Not Required"}
+                      </td>
+                      <td className="px-4 py-3">
+                        <button
+                          onClick={() => handleToggleActive(shift)}
+                          className={`px-3 py-1 rounded-full text-xs font-medium ${
+                            shift.is_active
+                              ? "bg-green-100 text-green-700"
+                              : "bg-gray-200 text-gray-700"
+                          }`}
+                        >
+                          {shift.is_active ? "Active" : "Inactive"}
+                        </button>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center justify-center gap-2">
+                          <button
+                            onClick={() => openEditModal(shift)}
+                            className="px-3 py-1 rounded-md border hover:bg-gray-50"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => handleDeleteShift(shift.id)}
+                            className="px-3 py-1 rounded-md border border-red-300 text-red-600 hover:bg-red-50"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        {isModalOpen && (
+          <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+            <div className="bg-white w-full max-w-lg rounded-2xl shadow-xl max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between p-5 border-b sticky top-0 bg-white">
+                <h2 className="text-lg font-semibold">
+                  {editingShift ? "Edit Shift" : "Add Shift"}
+                </h2>
+                <button
+                  onClick={closeModal}
+                  className="text-gray-500 hover:text-black"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveShift} className="p-5 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">
+                    Shift Name
+                  </label>
+                  <input
+                    type="text"
+                    value={form.name}
+                    onChange={(e) => handleInputChange("name", e.target.value)}
+                    placeholder="e.g. Morning Shift"
+                    className="w-full border rounded-lg px-3 py-2"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-1">
+                    Location
+                  </label>
+                  <select
+                    value={form.location_id}
+                    onChange={(e) =>
+                      handleInputChange("location_id", e.target.value)
+                    }
+                    className="w-full border rounded-lg px-3 py-2"
+                  >
+                    <option value="">Select location</option>
+                    {locations.map((location) => (
+                      <option key={location.id} value={location.id}>
+                        {location.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-1">
+                      Start Time
+                    </label>
+                    <input
+                      type="time"
+                      value={form.start_time}
+                      onChange={(e) =>
+                        handleInputChange("start_time", e.target.value)
+                      }
+                      className="w-full border rounded-lg px-3 py-2"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-1">
+                      End Time
+                    </label>
+                    <input
+                      type="time"
+                      value={form.end_time}
+                      onChange={(e) =>
+                        handleInputChange("end_time", e.target.value)
+                      }
+                      className="w-full border rounded-lg px-3 py-2"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-1">
+                      Grace Minutes
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={form.grace_minutes}
+                      onChange={(e) =>
+                        handleInputChange(
+                          "grace_minutes",
+                          Number(e.target.value || 0)
+                        )
+                      }
+                      className="w-full border rounded-lg px-3 py-2"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-1">
+                      Overtime After (Minutes)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={form.overtime_after_minutes}
+                      onChange={(e) =>
+                        handleInputChange(
+                          "overtime_after_minutes",
+                          Number(e.target.value || 0)
+                        )
+                      }
+                      className="w-full border rounded-lg px-3 py-2"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <input
+                    id="require_activity_log"
+                    type="checkbox"
+                    checked={!!form.require_activity_log_before_clock_out}
+                    onChange={(e) =>
+                      handleInputChange(
+                        "require_activity_log_before_clock_out",
+                        e.target.checked
+                      )
+                    }
+                  />
+                  <label htmlFor="require_activity_log" className="text-sm font-medium">
+                    Require Activity Log Before Clock Out
+                  </label>
+                </div>
+
+                {form.require_activity_log_before_clock_out && (
+                  <div>
+                    <label className="block text-sm font-medium mb-1">
+                      Minimum Activity Entries
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={form.min_activity_entries || 1}
+                      onChange={(e) =>
+                        handleInputChange(
+                          "min_activity_entries",
+                          Number(e.target.value || 1)
+                        )
+                      }
+                      className="w-full border rounded-lg px-3 py-2"
+                    />
+                  </div>
+                )}
+
+                <div className="flex items-center gap-2">
+                  <input
+                    id="is_active"
+                    type="checkbox"
+                    checked={form.is_active}
+                    onChange={(e) =>
+                      handleInputChange("is_active", e.target.checked)
+                    }
+                  />
+                  <label htmlFor="is_active" className="text-sm font-medium">
+                    Active Shift
+                  </label>
+                </div>
+
+                <div className="flex justify-end gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={closeModal}
+                    className="px-4 py-2 rounded-lg border hover:bg-gray-50"
+                    disabled={saving}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={saving}
+                    className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
+                  >
+                    {saving ? "Saving..." : editingShift ? "Update" : "Save"}
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         )}
       </div>
-
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white w-full max-w-lg rounded-2xl shadow-xl">
-            <div className="flex items-center justify-between p-5 border-b">
-              <h2 className="text-lg font-semibold">
-                {editingShift ? "Edit Shift" : "Add Shift"}
-              </h2>
-              <button
-                onClick={closeModal}
-                className="text-gray-500 hover:text-black"
-              >
-                ✕
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveShift} className="p-5 space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-1">
-                  Shift Name
-                </label>
-                <input
-                  type="text"
-                  value={form.name}
-                  onChange={(e) => handleInputChange("name", e.target.value)}
-                  placeholder="e.g. Morning Shift"
-                  className="w-full border rounded-lg px-3 py-2"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">
-                  Location
-                </label>
-                <select
-                  value={form.location_id}
-                  onChange={(e) =>
-                    handleInputChange("location_id", e.target.value)
-                  }
-                  className="w-full border rounded-lg px-3 py-2"
-                >
-                  <option value="">Select location</option>
-                  {locations.map((location) => (
-                    <option key={location.id} value={location.id}>
-                      {location.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium mb-1">
-                    Start Time
-                  </label>
-                  <input
-                    type="time"
-                    value={form.start_time}
-                    onChange={(e) =>
-                      handleInputChange("start_time", e.target.value)
-                    }
-                    className="w-full border rounded-lg px-3 py-2"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-1">
-                    End Time
-                  </label>
-                  <input
-                    type="time"
-                    value={form.end_time}
-                    onChange={(e) =>
-                      handleInputChange("end_time", e.target.value)
-                    }
-                    className="w-full border rounded-lg px-3 py-2"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium mb-1">
-                    Grace Minutes
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={form.grace_minutes}
-                    onChange={(e) =>
-                      handleInputChange(
-                        "grace_minutes",
-                        Number(e.target.value || 0)
-                      )
-                    }
-                    className="w-full border rounded-lg px-3 py-2"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-1">
-                    Overtime After (Minutes)
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={form.overtime_after_minutes}
-                    onChange={(e) =>
-                      handleInputChange(
-                        "overtime_after_minutes",
-                        Number(e.target.value || 0)
-                      )
-                    }
-                    className="w-full border rounded-lg px-3 py-2"
-                  />
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <input
-                  id="is_active"
-                  type="checkbox"
-                  checked={form.is_active}
-                  onChange={(e) =>
-                    handleInputChange("is_active", e.target.checked)
-                  }
-                />
-                <label htmlFor="is_active" className="text-sm font-medium">
-                  Active Shift
-                </label>
-              </div>
-
-              <div className="flex justify-end gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={closeModal}
-                  className="px-4 py-2 rounded-lg border hover:bg-gray-50"
-                  disabled={saving}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
-                >
-                  {saving ? "Saving..." : editingShift ? "Update" : "Save"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-    </div>
- 
-   </AdminLayout>
+    </AdminLayout>
   );
 }

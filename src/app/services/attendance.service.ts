@@ -332,6 +332,7 @@ export const attendanceService = {
       .select(
         `
         id,
+        user_id,
         scheduled_end,
         shift_id,
         clock_in,
@@ -358,11 +359,30 @@ export const attendanceService = {
 
     const { data: shift, error: shiftError } = await supabase
       .from("shifts")
-      .select("overtime_after_minutes")
+      .select(
+        "overtime_after_minutes, require_activity_log_before_clock_out, min_activity_entries"
+      )
       .eq("id", record.shift_id)
       .single();
 
     if (shiftError) throw shiftError;
+
+    if (shift.require_activity_log_before_clock_out) {
+      const { count, error: logError } = await supabase
+        .from("attendance_activity_logs")
+        .select("*", { count: "exact", head: true })
+        .eq("attendance_id", record.id);
+
+      if (logError) throw logError;
+
+      const required = shift.min_activity_entries || 1;
+
+      if ((count ?? 0) < required) {
+        throw new Error(
+          `You must submit at least ${required} activity log(s) before clocking out.`
+        );
+      }
+    }
 
     const scheduledEnd = new Date(record.scheduled_end);
     const overtimeThreshold = new Date(
@@ -517,5 +537,43 @@ export const attendanceService = {
     if (error) throw error;
 
     return (data || []).map(mapAttendance);
+  },
+
+  async getTodayShiftRequirement(userId: string) {
+    const today = getPHDate();
+
+    const { data: attendance, error: attendanceError } = await supabase
+      .from("attendance")
+      .select("id, shift_id, clock_in, clock_out")
+      .eq("user_id", userId)
+      .eq("date", today)
+      .maybeSingle();
+
+    if (attendanceError) throw attendanceError;
+
+    if (!attendance?.shift_id) {
+      return null;
+    }
+
+    const { data: shift, error: shiftError } = await supabase
+      .from("shifts")
+      .select(
+        "id, name, require_activity_log_before_clock_out, min_activity_entries"
+      )
+      .eq("id", attendance.shift_id)
+      .maybeSingle();
+
+    if (shiftError) throw shiftError;
+
+    return {
+      attendanceId: attendance.id,
+      shiftId: attendance.shift_id,
+      clockIn: attendance.clock_in,
+      clockOut: attendance.clock_out,
+      requireActivityLogBeforeClockOut:
+        !!shift?.require_activity_log_before_clock_out,
+      minActivityEntries: shift?.min_activity_entries ?? 1,
+      shiftName: shift?.name ?? null,
+    };
   },
 };

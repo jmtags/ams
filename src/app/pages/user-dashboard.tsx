@@ -7,6 +7,9 @@ import {
   XCircle,
   Paperclip,
   FileEdit,
+  Plus,
+  Trash2,
+  ClipboardList,
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { UserLayout } from '../layouts/user-layout';
@@ -37,6 +40,7 @@ import {
   DialogFooter,
 } from '../components/ui/dialog';
 import { attendanceService } from "../services/attendance.service";
+import { attendanceActivityLogService } from "../services/attendance-activity-log.service";
 import { locationService } from "../services/location.service";
 import { leaveTypeService, LeaveType } from "../services/leave-type.service";
 import { leaveBalanceService } from "../services/leave-balance.service";
@@ -75,6 +79,22 @@ type PunchAlterationFormState = {
   request_reason: string;
 };
 
+type ActivityLogRow = {
+  activity_text: string;
+  hours_spent: string;
+  output_note: string;
+};
+
+type TodayShiftRequirement = {
+  attendanceId: string;
+  shiftId: string;
+  clockIn: string | null;
+  clockOut: string | null;
+  requireActivityLogBeforeClockOut: boolean;
+  minActivityEntries: number;
+  shiftName: string | null;
+} | null;
+
 const initialLeaveForm: LeaveFormState = {
   leave_type_id: '',
   date_from: '',
@@ -89,6 +109,12 @@ const initialPunchAlterationForm: PunchAlterationFormState = {
   requested_clock_in: '',
   requested_clock_out: '',
   request_reason: '',
+};
+
+const emptyActivityRow: ActivityLogRow = {
+  activity_text: '',
+  hours_spent: '',
+  output_note: '',
 };
 
 function toLocalTimeInput(value?: string | null) {
@@ -132,6 +158,13 @@ export function UserDashboardPage() {
   const [punchSuccess, setPunchSuccess] = useState('');
   const [pendingRequestAttendanceIds, setPendingRequestAttendanceIds] = useState<string[]>([]);
 
+  const [todayShiftRequirement, setTodayShiftRequirement] = useState<TodayShiftRequirement>(null);
+  const [activityLogs, setActivityLogs] = useState<ActivityLogRow[]>([emptyActivityRow]);
+  const [isSavingActivityLogs, setIsSavingActivityLogs] = useState(false);
+  const [activityLogError, setActivityLogError] = useState('');
+  const [activityLogSuccess, setActivityLogSuccess] = useState('');
+  const [savedActivityLogCount, setSavedActivityLogCount] = useState(0);
+
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentTime(new Date());
@@ -143,6 +176,41 @@ export function UserDashboardPage() {
   useEffect(() => {
     loadAllData();
   }, [user]);
+
+  const loadTodayShiftRequirementAndLogs = async (userId: string) => {
+    try {
+      const requirement = await attendanceService.getTodayShiftRequirement(userId);
+      setTodayShiftRequirement(requirement);
+
+      if (requirement?.attendanceId) {
+        const logs = await attendanceActivityLogService.getByAttendanceId(
+          requirement.attendanceId
+        );
+
+        setSavedActivityLogCount(logs.length);
+
+        if (logs.length > 0) {
+          setActivityLogs(
+            logs.map((log) => ({
+              activity_text: log.activity_text || '',
+              hours_spent:
+                log.hours_spent === null || log.hours_spent === undefined
+                  ? ''
+                  : String(log.hours_spent),
+              output_note: log.output_note || '',
+            }))
+          );
+        } else {
+          setActivityLogs([emptyActivityRow]);
+        }
+      } else {
+        setSavedActivityLogCount(0);
+        setActivityLogs([emptyActivityRow]);
+      }
+    } catch (err) {
+      console.error("Error loading today shift requirement/activity logs:", err);
+    }
+  };
 
   const loadAllData = async () => {
     if (!user?.id) return;
@@ -168,6 +236,8 @@ export function UserDashboardPage() {
       setLeaveTypes((leaveTypeRows ?? []).filter((item) => item.is_active));
       setLeaveBalances(balanceRows ?? []);
       setLeaveRequests(requestRows ?? []);
+
+      await loadTodayShiftRequirementAndLogs(user.id);
 
       const pendingChecks = await Promise.all(
         (history ?? []).map(async (record) => {
@@ -197,6 +267,8 @@ export function UserDashboardPage() {
 
       setAttendanceHistory(history);
       setTodayAttendance(today);
+
+      await loadTodayShiftRequirementAndLogs(user.id);
 
       const pendingChecks = await Promise.all(
         (history ?? []).map(async (record) => {
@@ -389,6 +461,72 @@ export function UserDashboardPage() {
     }
   };
 
+  const addActivityLogRow = () => {
+    setActivityLogs((prev) => [...prev, { ...emptyActivityRow }]);
+  };
+
+  const removeActivityLogRow = (index: number) => {
+    setActivityLogs((prev) => {
+      if (prev.length === 1) return prev;
+      return prev.filter((_, i) => i !== index);
+    });
+  };
+
+  const updateActivityLogRow = (
+    index: number,
+    field: keyof ActivityLogRow,
+    value: string
+  ) => {
+    setActivityLogs((prev) =>
+      prev.map((row, i) =>
+        i === index
+          ? {
+              ...row,
+              [field]: value,
+            }
+          : row
+      )
+    );
+  };
+
+  const handleSaveActivityLogs = async () => {
+    if (!user?.id || !todayShiftRequirement?.attendanceId) return;
+
+    try {
+      setIsSavingActivityLogs(true);
+      setActivityLogError('');
+      setActivityLogSuccess('');
+
+      const cleaned = activityLogs.filter((row) => row.activity_text.trim());
+
+      if (
+        todayShiftRequirement.requireActivityLogBeforeClockOut &&
+        cleaned.length < (todayShiftRequirement.minActivityEntries || 1)
+      ) {
+        throw new Error(
+          `Please enter at least ${todayShiftRequirement.minActivityEntries} activity log(s).`
+        );
+      }
+
+      await attendanceActivityLogService.replaceLogs(
+        todayShiftRequirement.attendanceId,
+        user.id,
+        cleaned.map((row) => ({
+          activity_text: row.activity_text,
+          hours_spent: row.hours_spent ? Number(row.hours_spent) : null,
+          output_note: row.output_note || null,
+        }))
+      );
+
+      setSavedActivityLogCount(cleaned.length);
+      setActivityLogSuccess('Activity logs saved successfully.');
+    } catch (err: any) {
+      setActivityLogError(err.message || 'Failed to save activity logs.');
+    } finally {
+      setIsSavingActivityLogs(false);
+    }
+  };
+
   const getStatusBadgeVariant = (status: string) => {
     switch (status) {
       case 'present':
@@ -421,6 +559,11 @@ export function UserDashboardPage() {
     () => leaveTypes.find((item) => item.id === leaveForm.leave_type_id),
     [leaveTypes, leaveForm.leave_type_id]
   );
+
+  const requiresActivityLogs =
+    !!todayShiftRequirement?.requireActivityLogBeforeClockOut &&
+    !!todayAttendance?.clockIn &&
+    !todayAttendance?.clockOut;
 
   return (
     <UserLayout>
@@ -505,6 +648,14 @@ export function UserDashboardPage() {
                     </div>
                   </div>
                 )}
+
+                {requiresActivityLogs && (
+                  <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                    This shift requires at least{' '}
+                    <strong>{todayShiftRequirement?.minActivityEntries || 1}</strong>{' '}
+                    activity log(s) before clock out.
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -536,6 +687,137 @@ export function UserDashboardPage() {
             </CardContent>
           </Card>
         </div>
+
+        {requiresActivityLogs && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <ClipboardList className="w-5 h-5" />
+                Daily Activity Log
+              </CardTitle>
+              <CardDescription>
+                Enter your work activities before clocking out.
+                {todayShiftRequirement?.shiftName
+                  ? ` Shift: ${todayShiftRequirement.shiftName}.`
+                  : ''}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {(activityLogError || activityLogSuccess) && (
+                <div className="space-y-2">
+                  {activityLogError && (
+                    <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+                      {activityLogError}
+                    </div>
+                  )}
+                  {activityLogSuccess && (
+                    <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg text-sm">
+                      {activityLogSuccess}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="text-sm text-neutral-600">
+                Saved activity logs: <strong>{savedActivityLogCount}</strong> / minimum required:{' '}
+                <strong>{todayShiftRequirement?.minActivityEntries || 1}</strong>
+              </div>
+
+              <div className="space-y-4">
+                {activityLogs.map((row, index) => (
+                  <div
+                    key={index}
+                    className="rounded-lg border border-neutral-200 p-4 bg-neutral-50 space-y-3"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm font-medium text-neutral-900">
+                        Activity #{index + 1}
+                      </div>
+                      {activityLogs.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removeActivityLogRow(index)}
+                          className="text-red-600 hover:text-red-700"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="block text-sm text-neutral-700 mb-2">
+                        Activity
+                      </label>
+                      <textarea
+                        value={row.activity_text}
+                        onChange={(e) =>
+                          updateActivityLogRow(index, "activity_text", e.target.value)
+                        }
+                        rows={3}
+                        className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm"
+                        placeholder="Describe the task or work completed"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm text-neutral-700 mb-2">
+                          Hours Spent
+                        </label>
+                        <input
+                          type="number"
+                          step="0.25"
+                          min="0"
+                          value={row.hours_spent}
+                          onChange={(e) =>
+                            updateActivityLogRow(index, "hours_spent", e.target.value)
+                          }
+                          className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm"
+                          placeholder="Optional"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm text-neutral-700 mb-2">
+                          Output / Note
+                        </label>
+                        <input
+                          type="text"
+                          value={row.output_note}
+                          onChange={(e) =>
+                            updateActivityLogRow(index, "output_note", e.target.value)
+                          }
+                          className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm"
+                          placeholder="Optional"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex flex-wrap gap-3 justify-between">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={addActivityLogRow}
+                  className="flex items-center gap-2"
+                >
+                  <Plus className="w-4 h-4" />
+                  Add Activity
+                </Button>
+
+                <Button
+                  type="button"
+                  onClick={handleSaveActivityLogs}
+                  disabled={isSavingActivityLogs}
+                >
+                  {isSavingActivityLogs ? 'Saving...' : 'Save Activity Logs'}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
           <Card>
