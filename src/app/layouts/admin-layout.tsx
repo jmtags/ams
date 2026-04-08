@@ -175,7 +175,7 @@ const navGroups: NavGroup[] = [
   },
   {
     label: "System",
-    roles: ["admin", "hr", "payroll"],
+    roles: ["admin"],
     items: [
       {
         label: "Settings",
