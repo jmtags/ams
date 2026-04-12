@@ -2,6 +2,8 @@ import { createBrowserRouter, Navigate } from "react-router";
 import { LoginPage } from "./pages/login";
 import { UserDashboardPage } from "./pages/user-dashboard";
 import { ProfilePage } from "./pages/profile";
+import { UserPayrollPage } from "./pages/user-payroll";
+import { UserPayslipDetailsPage } from "./pages/user-payslip-details";
 
 import { AdminDashboardPage } from "./pages/admin-dashboard";
 import { AdminReportsPage } from "./pages/admin-reports";
@@ -55,6 +57,22 @@ export const router = createBrowserRouter([
     element: (
       <ProtectedRoute>
         <ProfilePage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/my-payroll",
+    element: (
+      <ProtectedRoute>
+        <UserPayrollPage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/my-payroll/:id",
+    element: (
+      <ProtectedRoute>
+        <UserPayslipDetailsPage />
       </ProtectedRoute>
     ),
   },

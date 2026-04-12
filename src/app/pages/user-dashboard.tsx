@@ -10,7 +10,10 @@ import {
   Plus,
   Trash2,
   ClipboardList,
+  Wallet,
+  Receipt,
 } from 'lucide-react';
+import { Link } from 'react-router';
 import { useAuth } from '../hooks/useAuth';
 import { UserLayout } from '../layouts/user-layout';
 import { Button } from '../components/ui/button';
@@ -46,7 +49,9 @@ import { leaveTypeService, LeaveType } from "../services/leave-type.service";
 import { leaveBalanceService } from "../services/leave-balance.service";
 import { leaveRequestService, LeaveRequest } from "../services/leave-request.service";
 import { attendanceAdjustmentRequestService } from "../services/attendance-adjustment-request.service";
+import { supabase } from "../lib/supabase";
 import type { AttendanceRecord, Location } from '../lib/types';
+import type { PayrollRecord } from '../services/payroll.service';
 import { formatDate, formatTime, getGreeting } from '../lib/utils';
 
 type UserLeaveBalance = {
@@ -128,6 +133,65 @@ function combineDateAndTime(date: string, time: string) {
   return `${date}T${time}:00+08:00`;
 }
 
+const currency = (value: number) =>
+  new Intl.NumberFormat('en-PH', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Number(value || 0));
+
+const getPayrollStatusBadgeVariant = (status: string) => {
+  switch (status) {
+    case 'draft':
+      return 'outline';
+    case 'computed':
+      return 'secondary';
+    case 'reviewed':
+      return 'secondary';
+    case 'finalized':
+      return 'default';
+    case 'released':
+      return 'default';
+    default:
+      return 'outline';
+  }
+};
+
+const mapPayrollRecord = (row: any): PayrollRecord => ({
+  ...row,
+  basic_rate: Number(row.basic_rate ?? 0),
+  daily_rate: Number(row.daily_rate ?? 0),
+  hourly_rate: Number(row.hourly_rate ?? 0),
+  total_work_days: Number(row.total_work_days ?? 0),
+  total_paid_leave_days: Number(row.total_paid_leave_days ?? 0),
+  total_unpaid_leave_days: Number(row.total_unpaid_leave_days ?? 0),
+  total_absent_days: Number(row.total_absent_days ?? 0),
+  total_late_minutes: Number(row.total_late_minutes ?? 0),
+  total_overtime_minutes: Number(row.total_overtime_minutes ?? 0),
+  basic_pay: Number(row.basic_pay ?? 0),
+  leave_pay: Number(row.leave_pay ?? 0),
+  overtime_pay: Number(row.overtime_pay ?? 0),
+  holiday_pay: Number(row.holiday_pay ?? 0),
+  restday_pay: Number(row.restday_pay ?? 0),
+  allowance_pay: Number(row.allowance_pay ?? 0),
+  gross_pay: Number(row.gross_pay ?? 0),
+  late_deduction: Number(row.late_deduction ?? 0),
+  undertime_deduction: Number(row.undertime_deduction ?? 0),
+  absent_deduction: Number(row.absent_deduction ?? 0),
+  sss_deduction: Number(row.sss_deduction ?? 0),
+  pagibig_deduction: Number(row.pagibig_deduction ?? 0),
+  philhealth_deduction: Number(row.philhealth_deduction ?? 0),
+  tax_deduction: Number(row.tax_deduction ?? 0),
+  other_deductions: Number(row.other_deductions ?? 0),
+  total_deductions: Number(row.total_deductions ?? 0),
+  net_pay: Number(row.net_pay ?? 0),
+  user_name: row.users?.name ?? '',
+  user_email: row.users?.email ?? null,
+  payroll_period_name: row.payroll_periods?.name ?? '',
+  payroll_period_date_from: row.payroll_periods?.date_from ?? null,
+  payroll_period_date_to: row.payroll_periods?.date_to ?? null,
+  payroll_period_pay_date: row.payroll_periods?.pay_date ?? null,
+});
+
 export function UserDashboardPage() {
   const { user } = useAuth();
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -139,6 +203,8 @@ export function UserDashboardPage() {
   const [leaveTypes, setLeaveTypes] = useState<LeaveType[]>([]);
   const [leaveBalances, setLeaveBalances] = useState<UserLeaveBalance[]>([]);
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
+
+  const [payrollRecords, setPayrollRecords] = useState<PayrollRecord[]>([]);
 
   const [leaveForm, setLeaveForm] = useState<LeaveFormState>(initialLeaveForm);
 
@@ -212,6 +278,34 @@ export function UserDashboardPage() {
     }
   };
 
+  const loadMyPayrollRecords = async (userId: string) => {
+    const { data, error } = await supabase
+      .from("payroll_records")
+      .select(`
+        *,
+        users (
+          id,
+          name,
+          email
+        ),
+        payroll_periods (
+          id,
+          name,
+          date_from,
+          date_to,
+          pay_date
+        )
+      `)
+      .eq("user_id", userId)
+      .in("status", ["finalized", "released"])
+      .order("created_at", { ascending: false })
+      .limit(5);
+
+    if (error) throw error;
+
+    setPayrollRecords((data ?? []).map(mapPayrollRecord));
+  };
+
   const loadAllData = async () => {
     if (!user?.id) return;
 
@@ -237,7 +331,10 @@ export function UserDashboardPage() {
       setLeaveBalances(balanceRows ?? []);
       setLeaveRequests(requestRows ?? []);
 
-      await loadTodayShiftRequirementAndLogs(user.id);
+      await Promise.all([
+        loadTodayShiftRequirementAndLogs(user.id),
+        loadMyPayrollRecords(user.id),
+      ]);
 
       const pendingChecks = await Promise.all(
         (history ?? []).map(async (record) => {
@@ -565,6 +662,8 @@ export function UserDashboardPage() {
     !!todayAttendance?.clockIn &&
     !todayAttendance?.clockOut;
 
+  const latestPayrollRecord = payrollRecords[0] ?? null;
+
   return (
     <UserLayout>
       <div className="space-y-6">
@@ -660,33 +759,149 @@ export function UserDashboardPage() {
             </CardContent>
           </Card>
 
+          <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Quick Stats</CardTitle>
+                <CardDescription>Your attendance overview</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="bg-neutral-50 rounded-lg p-4">
+                    <p className="text-sm text-neutral-600 mb-1">Present Days</p>
+                    <p className="text-2xl text-neutral-900">
+                      {attendanceHistory.filter((r) => r.status === 'present').length}
+                    </p>
+                  </div>
+                  <div className="bg-neutral-50 rounded-lg p-4">
+                    <p className="text-sm text-neutral-600 mb-1">Late Days</p>
+                    <p className="text-2xl text-neutral-900">
+                      {attendanceHistory.filter((r) => r.status === 'late').length}
+                    </p>
+                  </div>
+                  <div className="bg-neutral-50 rounded-lg p-4">
+                    <p className="text-sm text-neutral-600 mb-1">Total Records</p>
+                    <p className="text-2xl text-neutral-900">{attendanceHistory.length}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Wallet className="w-5 h-5" />
+                  Payroll & Payslips
+                </CardTitle>
+                <CardDescription>
+                  View your latest payroll information and payslips.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="bg-neutral-50 rounded-lg p-4">
+                    <p className="text-sm text-neutral-600 mb-1">Latest Pay Date</p>
+                    <p className="text-lg text-neutral-900">
+                      {latestPayrollRecord?.payroll_period_pay_date || 'No payroll yet'}
+                    </p>
+                  </div>
+
+                  <div className="bg-neutral-50 rounded-lg p-4">
+                    <p className="text-sm text-neutral-600 mb-1">Latest Net Pay</p>
+                    <p className="text-2xl text-neutral-900">
+                      {latestPayrollRecord ? currency(latestPayrollRecord.net_pay) : '0.00'}
+                    </p>
+                  </div>
+
+                  <div className="bg-neutral-50 rounded-lg p-4">
+                    <p className="text-sm text-neutral-600 mb-1">Latest Status</p>
+                    <div className="mt-2">
+                      {latestPayrollRecord ? (
+                        <Badge variant={getPayrollStatusBadgeVariant(latestPayrollRecord.status)}>
+                          {latestPayrollRecord.status}
+                        </Badge>
+                      ) : (
+                        <span className="text-sm text-neutral-500">No payroll record</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-2">
+                    <Link to="/my-payroll">
+                      <Button className="w-full">
+                        <Receipt className="w-4 h-4 mr-2" />
+                        View My Payroll
+                      </Button>
+                    </Link>
+
+                    {latestPayrollRecord && (
+                      <Link to={`/my-payroll/${latestPayrollRecord.id}`}>
+                        <Button variant="outline" className="w-full">
+                          View Latest Payslip
+                        </Button>
+                      </Link>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+             */}
+          </div>
+        </div>
+
+        {/* {payrollRecords.length > 0 && (
           <Card>
             <CardHeader>
-              <CardTitle>Quick Stats</CardTitle>
-              <CardDescription>Your attendance overview</CardDescription>
+              <CardTitle>Recent Payroll Records</CardTitle>
+              <CardDescription>
+                Your most recent finalized or released payroll entries.
+              </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                <div className="bg-neutral-50 rounded-lg p-4">
-                  <p className="text-sm text-neutral-600 mb-1">Present Days</p>
-                  <p className="text-2xl text-neutral-900">
-                    {attendanceHistory.filter((r) => r.status === 'present').length}
-                  </p>
-                </div>
-                <div className="bg-neutral-50 rounded-lg p-4">
-                  <p className="text-sm text-neutral-600 mb-1">Late Days</p>
-                  <p className="text-2xl text-neutral-900">
-                    {attendanceHistory.filter((r) => r.status === 'late').length}
-                  </p>
-                </div>
-                <div className="bg-neutral-50 rounded-lg p-4">
-                  <p className="text-sm text-neutral-600 mb-1">Total Records</p>
-                  <p className="text-2xl text-neutral-900">{attendanceHistory.length}</p>
-                </div>
-              </div>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Payroll Period</TableHead>
+                    <TableHead>Pay Date</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Net Pay</TableHead>
+                    <TableHead className="text-right">Action</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {payrollRecords.map((record) => (
+                    <TableRow key={record.id}>
+                      <TableCell>
+                        <div className="font-medium">
+                          {record.payroll_period_name || 'Payroll Period'}
+                        </div>
+                        <div className="text-xs text-neutral-500">
+                          {record.payroll_period_date_from || '-'} to {record.payroll_period_date_to || '-'}
+                        </div>
+                      </TableCell>
+                      <TableCell>{record.payroll_period_pay_date || '-'}</TableCell>
+                      <TableCell>
+                        <Badge variant={getPayrollStatusBadgeVariant(record.status)}>
+                          {record.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right font-semibold">
+                        {currency(record.net_pay)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Link to={`/my-payroll/${record.id}`}>
+                          <Button variant="outline" size="sm">
+                            View Payslip
+                          </Button>
+                        </Link>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </CardContent>
           </Card>
-        </div>
+        )} */}
 
         {requiresActivityLogs && (
           <Card>

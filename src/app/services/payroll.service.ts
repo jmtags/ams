@@ -780,4 +780,73 @@ export const payrollService = {
 
     if (periodError) throw periodError;
   },
+
+  async getMyPayrollRecords(userId: string): Promise<PayrollRecord[]> {
+  const { data, error } = await supabase
+    .from("payroll_records")
+    .select(`
+      *,
+      payroll_periods (
+        id,
+        name,
+        date_from,
+        date_to,
+        pay_date
+      )
+    `)
+    .eq("user_id", userId)
+    .in("status", ["finalized", "released"])
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+  return (data ?? []).map(mapPayrollRecord);
+},
+async getMyPayrollRecordDetails(recordId: string, userId: string): Promise<{
+  record: PayrollRecord | null;
+  items: PayrollRecordItem[];
+}> {
+  const [recordRes, itemsRes] = await Promise.all([
+    supabase
+      .from("payroll_records")
+      .select(`
+        *,
+        users (
+          id,
+          name,
+          email
+        ),
+        payroll_periods (
+          id,
+          name,
+          date_from,
+          date_to,
+          pay_date
+        )
+      `)
+      .eq("id", recordId)
+      .eq("user_id", userId)
+      .maybeSingle(),
+
+    supabase
+      .from("payroll_record_items")
+      .select(`
+        *,
+        payroll_records!inner (
+          id,
+          user_id
+        )
+      `)
+      .eq("payroll_record_id", recordId)
+      .eq("payroll_records.user_id", userId)
+      .order("created_at", { ascending: true }),
+  ]);
+
+  if (recordRes.error) throw recordRes.error;
+  if (itemsRes.error) throw itemsRes.error;
+
+  return {
+    record: recordRes.data ? mapPayrollRecord(recordRes.data) : null,
+    items: (itemsRes.data ?? []).map(mapPayrollRecordItem),
+  };
+},
 };

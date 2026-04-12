@@ -1,65 +1,186 @@
-import { ReactNode } from 'react';
-import { Link, useNavigate } from 'react-router';
-import { LogOut, User } from 'lucide-react';
+import { useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router';
+import {
+  LayoutDashboard,
+  User,
+  Wallet,
+  Menu,
+  X,
+  LogOut,
+} from 'lucide-react';
+
 import { useAuth } from '../hooks/useAuth';
 import { Button } from '../components/ui/button';
 
-interface UserLayoutProps {
-  children: ReactNode;
-}
+type UserLayoutProps = {
+  children: React.ReactNode;
+};
+
+const navigation = [
+  {
+    name: 'Dashboard',
+    href: '/dashboard',
+    icon: LayoutDashboard,
+  },
+  {
+    name: 'Profile',
+    href: '/profile',
+    icon: User,
+  },
+  {
+    name: 'My Payroll',
+    href: '/my-payroll',
+    icon: Wallet,
+  },
+];
 
 export function UserLayout({ children }: UserLayoutProps) {
-  const { user, logout } = useAuth();
+  const location = useLocation();
   const navigate = useNavigate();
+  const { user, logout } = useAuth();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const handleLogout = async () => {
-    await logout();
-    navigate('/login');
+    try {
+      await logout();
+      navigate('/login');
+    } catch (error) {
+      console.error('Logout failed:', error);
+    }
+  };
+
+  const isActiveRoute = (href: string) => {
+    if (href === '/dashboard') {
+      return location.pathname === '/dashboard';
+    }
+
+    if (href === '/my-payroll') {
+      return (
+        location.pathname === '/my-payroll' ||
+        location.pathname.startsWith('/my-payroll/')
+      );
+    }
+
+    return location.pathname === href;
   };
 
   return (
-    <div className="min-h-screen bg-neutral-50">
-      <nav className="bg-white border-b border-neutral-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center gap-8">
-              <Link to="/dashboard" className="text-xl text-neutral-900">
-                Attendance System
-              </Link>
-              <div className="flex gap-4">
-                <Link
-                  to="/dashboard"
-                  className="text-neutral-700 hover:text-neutral-900 transition-colors"
-                >
-                  Dashboard
-                </Link>
-                <Link
-                  to="/profile"
-                  className="text-neutral-700 hover:text-neutral-900 transition-colors"
-                >
-                  Profile
-                </Link>
-              </div>
-            </div>
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2 text-sm text-neutral-700">
-                <User className="w-4 h-4" />
-                <span>{user?.name}</span>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleLogout}
-                className="flex items-center gap-2"
+    <div className="min-h-screen bg-neutral-50 flex">
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/40 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      <aside
+        className={`
+          fixed lg:static inset-y-0 left-0 z-50
+          w-64 bg-white border-r border-neutral-200
+          transform transition-transform duration-200 ease-in-out
+          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+        `}
+      >
+        <div className="h-16 px-6 border-b border-neutral-200 flex items-center justify-between">
+          <div>
+            <h1 className="text-lg font-semibold text-neutral-900">HRIS</h1>
+            <p className="text-xs text-neutral-500">Employee Portal</p>
+          </div>
+
+          <button
+            type="button"
+            className="lg:hidden text-neutral-600 hover:text-neutral-900"
+            onClick={() => setSidebarOpen(false)}
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="px-4 py-4 border-b border-neutral-200">
+          <p className="text-sm font-medium text-neutral-900 truncate">
+            {user?.name || 'User'}
+          </p>
+          <p className="text-xs text-neutral-500 truncate">
+            {user?.email || ''}
+          </p>
+          <p className="text-xs text-neutral-400 capitalize mt-1">
+            {user?.role || 'user'}
+          </p>
+        </div>
+
+        <nav className="p-4 space-y-1">
+          {navigation.map((item) => {
+            const Icon = item.icon;
+            const active = isActiveRoute(item.href);
+
+            return (
+              <Link
+                key={item.name}
+                to={item.href}
+                onClick={() => setSidebarOpen(false)}
+                className={`
+                  flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors
+                  ${
+                    active
+                      ? 'bg-neutral-900 text-white'
+                      : 'text-neutral-700 hover:bg-neutral-100'
+                  }
+                `}
               >
-                <LogOut className="w-4 h-4" />
-                Logout
-              </Button>
+                <Icon className="w-4 h-4" />
+                <span>{item.name}</span>
+              </Link>
+            );
+          })}
+        </nav>
+
+        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-neutral-200 bg-white">
+          <Button
+            variant="outline"
+            onClick={handleLogout}
+            className="w-full flex items-center justify-center gap-2"
+          >
+            <LogOut className="w-4 h-4" />
+            Logout
+          </Button>
+        </div>
+      </aside>
+
+      <div className="flex-1 min-w-0 flex flex-col">
+        <header className="h-16 bg-white border-b border-neutral-200 flex items-center justify-between px-4 lg:px-6">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              className="lg:hidden text-neutral-700 hover:text-neutral-900"
+              onClick={() => setSidebarOpen(true)}
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+
+            <div>
+              <h2 className="text-base font-semibold text-neutral-900">
+                Employee Dashboard
+              </h2>
+              <p className="text-xs text-neutral-500">
+                Manage your attendance, leave, and payroll
+              </p>
             </div>
           </div>
-        </div>
-      </nav>
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">{children}</main>
+
+          <div className="text-right hidden sm:block">
+            <p className="text-sm font-medium text-neutral-900">
+              {user?.name || 'User'}
+            </p>
+            <p className="text-xs text-neutral-500 capitalize">
+              {user?.role || 'user'}
+            </p>
+          </div>
+        </header>
+
+        <main className="flex-1 p-4 lg:p-6 overflow-x-hidden">
+          {children}
+        </main>
+      </div>
     </div>
   );
 }

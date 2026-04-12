@@ -170,13 +170,15 @@ updateUserByAdmin: async (payload: AdminUpdateUserPayload): Promise<User> => {
       sss: payload.sss ?? null,
       pagibig: payload.pagibig ?? null,
       philhealth: payload.philhealth ?? null,
-      atm_number: payload.atm_number ?? null,
+      atm_number: payload.atm_number ?? null
     })
     .eq("id", payload.id)
     .select("*")
-    .single();
+    .maybeSingle();
 
   if (error) throw new Error(error.message || "Failed to update user");
+  if (!data) throw new Error("User update failed: row not visible or not allowed by RLS.");
+
   return data as User;
 },
 
