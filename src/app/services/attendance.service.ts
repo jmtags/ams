@@ -243,7 +243,7 @@ export const attendanceService = {
 
     const shouldCheckLate = !dayContext.isHoliday && !dayContext.isRestDay;
     const isLate = shouldCheckLate ? now > graceLimit : false;
-    const minutesLate = isLate ? diffMinutes(now, scheduledStart) : 0;
+    const minutesLate = isLate ? diffMinutes(scheduledStart, now) : 0;
 
     const status = resolveAttendanceStatus({
       worked: true,

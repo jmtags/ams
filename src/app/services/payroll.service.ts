@@ -186,6 +186,23 @@ const diffMinutes = (
 const getAttendanceOvertimeMinutes = (row: any) =>
   Number(row.approved_overtime_minutes ?? row.minutes_overtime ?? 0);
 
+const getAttendanceLateMinutes = (row: any) => {
+  const recordedMinutes = Number(row.minutes_late ?? 0);
+  if (recordedMinutes > 0) return recordedMinutes;
+
+  const status = String(row.status ?? "").toLowerCase();
+  const markedLate =
+    row.is_late === true || status === "late" || status === "late_overtime";
+
+  if (!markedLate) return 0;
+
+  const graceMinutes = Number(row.shifts?.grace_minutes ?? 0);
+  return Math.max(
+    0,
+    diffMinutes(row.scheduled_start, row.clock_in) - graceMinutes
+  );
+};
+
 const getPartTimeBreakMinutes = (elapsedMinutes: number) => {
   if (elapsedMinutes >= 8 * 60) return 60;
   if (elapsedMinutes >= 4 * 60) return 30;
@@ -358,7 +375,7 @@ export const payrollService = {
       supabase.from("employee_compensation").select("*").eq("is_active", true),
       supabase
         .from("attendance")
-        .select("*")
+        .select("*, shifts ( grace_minutes )")
         .gte("date", period.date_from)
         .lte("date", period.date_to),
       supabase
@@ -498,7 +515,7 @@ export const payrollService = {
 
       const rawLateMinutes = userAttendance.reduce(
         (sum, row) => {
-          const minutesLate = Number(row.minutes_late ?? 0);
+          const minutesLate = getAttendanceLateMinutes(row);
           return minutesLate >= 15 ? sum + minutesLate : sum;
         },
         0
