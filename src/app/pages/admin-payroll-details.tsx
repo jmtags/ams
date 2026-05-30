@@ -385,12 +385,24 @@ export function AdminPayrollDetailsPage() {
               </CardContent>
             </Card>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <Card className="print:shadow-none print:border">
                 <CardContent className="pt-6">
                   <p className="text-sm text-neutral-500">Total Earnings Items</p>
                   <p className="text-2xl font-bold mt-2">
                     {currency(earningsTotal)}
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card className="print:shadow-none print:border">
+                <CardContent className="pt-6">
+                  <p className="text-sm text-neutral-500">Late Deduction</p>
+                  <p className="text-2xl font-bold mt-2 text-red-600">
+                    {currency(record.late_deduction)}
+                  </p>
+                  <p className="text-xs text-neutral-500 mt-1">
+                    {Number(record.total_late_minutes ?? 0)} late minutes
                   </p>
                 </CardContent>
               </Card>
