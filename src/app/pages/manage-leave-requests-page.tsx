@@ -250,7 +250,6 @@ export default function ManageLeaveRequestsPage() {
   };
 
   const closeLeaveTypeDialog = () => {
-    if (submitting) return;
     setLeaveTypeDialog({
       open: false,
       request: null,

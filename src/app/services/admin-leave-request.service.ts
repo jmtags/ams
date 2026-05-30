@@ -388,6 +388,26 @@ export const adminLeaveRequestService = {
     const nowIso = new Date().toISOString();
     const totalDays = Number(requestRow.total_days ?? 0);
     const year = new Date(requestRow.date_from).getFullYear();
+    const createBalance = async () => {
+      const { data, error } = await supabase
+        .from("leave_balances")
+        .insert({
+          user_id: requestRow.user_id,
+          leave_type_id: nextLeaveTypeId,
+          year,
+          entitled: 0,
+          used: 0,
+          pending: 0,
+        })
+        .select("*")
+        .single();
+
+      if (error) {
+        throw new Error(error.message || "Failed to create new leave balance.");
+      }
+
+      return data;
+    };
 
     if (requestRow.status === "approved") {
       const [oldBalanceRes, newBalanceRes] = await Promise.all([
@@ -415,9 +435,7 @@ export const adminLeaveRequestService = {
         throw new Error(newBalanceRes.error.message || "Failed to read new leave balance.");
       }
 
-      if (!newBalanceRes.data) {
-        throw new Error("New leave type balance not found for this employee and year.");
-      }
+      const newBalanceRow = newBalanceRes.data ?? await createBalance();
 
       if (oldBalanceRes.data) {
         const { error } = await supabase
@@ -436,10 +454,10 @@ export const adminLeaveRequestService = {
       const { error: newBalanceError } = await supabase
         .from("leave_balances")
         .update({
-          used: Number(newBalanceRes.data.used ?? 0) + totalDays,
+          used: Number(newBalanceRow.used ?? 0) + totalDays,
           updated_at: nowIso,
         })
-        .eq("id", newBalanceRes.data.id);
+        .eq("id", newBalanceRow.id);
 
       if (newBalanceError) {
         throw new Error(newBalanceError.message || "Failed to apply new leave balance.");
@@ -466,9 +484,7 @@ export const adminLeaveRequestService = {
         throw new Error("Failed to read leave balances.");
       }
 
-      if (!newBalanceRes.data) {
-        throw new Error("New leave type balance not found for this employee and year.");
-      }
+      const newBalanceRow = newBalanceRes.data ?? await createBalance();
 
       if (oldBalanceRes.data) {
         const { error } = await supabase
@@ -487,10 +503,10 @@ export const adminLeaveRequestService = {
       const { error: newBalanceError } = await supabase
         .from("leave_balances")
         .update({
-          pending: Number(newBalanceRes.data.pending ?? 0) + totalDays,
+          pending: Number(newBalanceRow.pending ?? 0) + totalDays,
           updated_at: nowIso,
         })
-        .eq("id", newBalanceRes.data.id);
+        .eq("id", newBalanceRow.id);
 
       if (newBalanceError) {
         throw new Error(newBalanceError.message || "Failed to apply new pending balance.");
