@@ -44,6 +44,17 @@ type DashboardAttendanceRow = AttendanceRecord & {
   employeeName: string
   employeeEmail: string
   department: string
+  scheduledStart?: string | null
+  scheduledEnd?: string | null
+  minutesLate?: number
+  minutesOvertime?: number
+  isLate?: boolean
+  isOvertime?: boolean
+  isAbsent?: boolean
+  isHoliday?: boolean
+  isRestDay?: boolean
+  holidayName?: string | null
+  remarks?: string | null
   sourceType?: "attendance" | "synthetic_absent" | "synthetic_leave"
   leaveTypeName?: string | null
   leaveTypeCode?: string | null
@@ -139,6 +150,34 @@ export function AdminDashboardPage() {
     if (!dateString) return "-"
     const phDate = toZonedTime(new Date(dateString), "Asia/Manila")
     return format(phDate, "hh:mm a")
+  }
+
+  const getDiffHours = (
+    start?: string | null,
+    end?: string | null
+  ): number | null => {
+    if (!start || !end) return null
+
+    const startTime = new Date(start).getTime()
+    const endTime = new Date(end).getTime()
+
+    if (!Number.isFinite(startTime) || !Number.isFinite(endTime)) return null
+    if (endTime <= startTime) return null
+
+    return (endTime - startTime) / 3600000
+  }
+
+  const formatHours = (value: number | null) => {
+    if (value === null) return "-"
+    return `${value.toFixed(2)} hrs`
+  }
+
+  const getRenderedHours = (record: DashboardAttendanceRow) =>
+    getDiffHours(record.clockIn, record.clockOut)
+
+  const getAssumedShiftHours = (record: DashboardAttendanceRow) => {
+    if (!record.clockIn || record.clockOut) return null
+    return getDiffHours(record.scheduledStart, record.scheduledEnd)
   }
 
   const getLocationName = (locationId?: string | null) => {
@@ -266,6 +305,8 @@ export function AdminDashboardPage() {
       Date: record.date || "",
       ClockIn: record.clockIn ? formatPHTime(record.clockIn) : "",
       ClockOut: record.clockOut ? formatPHTime(record.clockOut) : "",
+      RenderedHours: getRenderedHours(record) ?? "",
+      AssumedShiftHours: getAssumedShiftHours(record) ?? "",
       Status: formatStatusLabel(record.status),
       LeaveType: record.leaveTypeName || "",
       LeaveCode: record.leaveTypeCode || "",
@@ -302,6 +343,8 @@ export function AdminDashboardPage() {
       { wch: 14 },
       { wch: 12 },
       { wch: 12 },
+      { wch: 14 },
+      { wch: 18 },
       { wch: 22 },
       { wch: 20 },
       { wch: 12 },
@@ -701,6 +744,8 @@ export function AdminDashboardPage() {
                   <TableHead>Date</TableHead>
                   <TableHead>Clock In</TableHead>
                   <TableHead>Clock Out</TableHead>
+                  <TableHead>Rendered Hours</TableHead>
+                  <TableHead>Assumed Shift Hours</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Leave Type</TableHead>
                   <TableHead>Late</TableHead>
@@ -713,7 +758,7 @@ export function AdminDashboardPage() {
               <TableBody>
                 {paginatedAttendance.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={12} className="text-center py-6">
+                    <TableCell colSpan={14} className="text-center py-6">
                       No attendance records found.
                     </TableCell>
                   </TableRow>
@@ -729,6 +774,10 @@ export function AdminDashboardPage() {
                       </TableCell>
                       <TableCell>
                         {record.clockOut ? formatPHTime(record.clockOut) : "-"}
+                      </TableCell>
+                      <TableCell>{formatHours(getRenderedHours(record))}</TableCell>
+                      <TableCell>
+                        {formatHours(getAssumedShiftHours(record))}
                       </TableCell>
                       <TableCell>
                         <Badge variant={getStatusBadgeVariant(record.status)}>
