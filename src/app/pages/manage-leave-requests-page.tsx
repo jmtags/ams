@@ -7,6 +7,7 @@ import {
   XCircle,
   Paperclip,
   Eye,
+  Pencil,
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
@@ -58,6 +59,11 @@ type DecisionDialogState = {
   request: AdminLeaveRequest | null;
 };
 
+type LeaveTypeDialogState = {
+  open: boolean;
+  request: AdminLeaveRequest | null;
+};
+
 export default function ManageLeaveRequestsPage() {
   const { user } = useAuth();
 
@@ -82,6 +88,11 @@ export default function ManageLeaveRequestsPage() {
     request: null,
   });
   const [remarks, setRemarks] = useState("");
+  const [leaveTypeDialog, setLeaveTypeDialog] = useState<LeaveTypeDialogState>({
+    open: false,
+    request: null,
+  });
+  const [selectedLeaveTypeId, setSelectedLeaveTypeId] = useState("");
 
   const totalRecords = useMemo(() => leaveRequests.length, [leaveRequests]);
 
@@ -226,6 +237,48 @@ export default function ManageLeaveRequestsPage() {
       request: null,
     });
     setRemarks("");
+  };
+
+  const openLeaveTypeDialog = (request: AdminLeaveRequest) => {
+    setError("");
+    setSuccess("");
+    setSelectedLeaveTypeId(request.leave_type_id);
+    setLeaveTypeDialog({
+      open: true,
+      request,
+    });
+  };
+
+  const closeLeaveTypeDialog = () => {
+    if (submitting) return;
+    setLeaveTypeDialog({
+      open: false,
+      request: null,
+    });
+    setSelectedLeaveTypeId("");
+  };
+
+  const handleLeaveTypeUpdate = async () => {
+    if (!leaveTypeDialog.request) return;
+
+    try {
+      setSubmitting(true);
+      setError("");
+      setSuccess("");
+
+      await adminLeaveRequestService.updateLeaveType(
+        leaveTypeDialog.request.id,
+        selectedLeaveTypeId
+      );
+
+      setSuccess("Leave type updated successfully.");
+      closeLeaveTypeDialog();
+      await loadLeaveRequests();
+    } catch (err: any) {
+      setError(err.message || "Failed to update leave type.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleDecision = async () => {
@@ -531,6 +584,17 @@ export default function ManageLeaveRequestsPage() {
                                 </Button>
                               </>
                             )}
+
+                            {["pending", "approved"].includes(item.status) && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => openLeaveTypeDialog(item)}
+                              >
+                                <Pencil className="mr-2 h-4 w-4" />
+                                Type
+                              </Button>
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>
@@ -614,6 +678,82 @@ export default function ManageLeaveRequestsPage() {
                     : decisionDialog.mode === "approve"
                     ? "Approve"
                     : "Reject"}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog
+          open={leaveTypeDialog.open}
+          onOpenChange={(open) => !submitting && !open && closeLeaveTypeDialog()}
+        >
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Edit Leave Type</DialogTitle>
+              <DialogDescription>
+                Correct the leave type filed by the employee.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              {leaveTypeDialog.request && (
+                <div className="rounded-md border border-neutral-200 bg-neutral-50 p-4 text-sm">
+                  <div>
+                    <span className="font-medium">Employee:</span>{" "}
+                    {leaveTypeDialog.request.employee_name}
+                  </div>
+                  <div>
+                    <span className="font-medium">Current Leave Type:</span>{" "}
+                    {leaveTypeDialog.request.leave_type_name}
+                  </div>
+                  <div>
+                    <span className="font-medium">Status:</span>{" "}
+                    {leaveTypeDialog.request.status}
+                  </div>
+                  <div>
+                    <span className="font-medium">Duration:</span>{" "}
+                    {leaveTypeDialog.request.is_half_day
+                      ? `0.5 day (${leaveTypeDialog.request.half_day_portion ?? "-"})`
+                      : `${leaveTypeDialog.request.total_days} day(s)`}
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label className="mb-2 block text-sm font-medium">
+                  New Leave Type
+                </label>
+                <select
+                  value={selectedLeaveTypeId}
+                  onChange={(e) => setSelectedLeaveTypeId(e.target.value)}
+                  className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
+                >
+                  <option value="">Select leave type</option>
+                  {leaveTypes.map((leaveType) => (
+                    <option key={leaveType.id} value={leaveType.id}>
+                      {leaveType.code} - {leaveType.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={closeLeaveTypeDialog}
+                  disabled={submitting}
+                >
+                  Cancel
+                </Button>
+
+                <Button
+                  type="button"
+                  onClick={handleLeaveTypeUpdate}
+                  disabled={submitting || !selectedLeaveTypeId}
+                >
+                  {submitting ? "Updating..." : "Update Leave Type"}
                 </Button>
               </div>
             </div>

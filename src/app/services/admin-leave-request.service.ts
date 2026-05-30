@@ -352,4 +352,161 @@ export const adminLeaveRequestService = {
 
     await removeLeaveRequestDates(requestId);
   },
+
+  async updateLeaveType(
+    requestId: string,
+    nextLeaveTypeId: string
+  ): Promise<void> {
+    const { data: requestRow, error: requestError } = await supabase
+      .from("leave_requests")
+      .select("*")
+      .eq("id", requestId)
+      .single();
+
+    if (requestError || !requestRow) {
+      throw new Error("Leave request not found.");
+    }
+
+    if (!nextLeaveTypeId) {
+      throw new Error("Leave type is required.");
+    }
+
+    if (requestRow.leave_type_id === nextLeaveTypeId) {
+      return;
+    }
+
+    const { data: leaveTypeRow, error: leaveTypeError } = await supabase
+      .from("leave_types")
+      .select("id")
+      .eq("id", nextLeaveTypeId)
+      .single();
+
+    if (leaveTypeError || !leaveTypeRow) {
+      throw new Error("Selected leave type not found.");
+    }
+
+    const nowIso = new Date().toISOString();
+    const totalDays = Number(requestRow.total_days ?? 0);
+    const year = new Date(requestRow.date_from).getFullYear();
+
+    if (requestRow.status === "approved") {
+      const [oldBalanceRes, newBalanceRes] = await Promise.all([
+        supabase
+          .from("leave_balances")
+          .select("*")
+          .eq("user_id", requestRow.user_id)
+          .eq("leave_type_id", requestRow.leave_type_id)
+          .eq("year", year)
+          .maybeSingle(),
+        supabase
+          .from("leave_balances")
+          .select("*")
+          .eq("user_id", requestRow.user_id)
+          .eq("leave_type_id", nextLeaveTypeId)
+          .eq("year", year)
+          .maybeSingle(),
+      ]);
+
+      if (oldBalanceRes.error) {
+        throw new Error(oldBalanceRes.error.message || "Failed to read old leave balance.");
+      }
+
+      if (newBalanceRes.error) {
+        throw new Error(newBalanceRes.error.message || "Failed to read new leave balance.");
+      }
+
+      if (!newBalanceRes.data) {
+        throw new Error("New leave type balance not found for this employee and year.");
+      }
+
+      if (oldBalanceRes.data) {
+        const { error } = await supabase
+          .from("leave_balances")
+          .update({
+            used: Math.max(0, Number(oldBalanceRes.data.used ?? 0) - totalDays),
+            updated_at: nowIso,
+          })
+          .eq("id", oldBalanceRes.data.id);
+
+        if (error) {
+          throw new Error(error.message || "Failed to restore old leave balance.");
+        }
+      }
+
+      const { error: newBalanceError } = await supabase
+        .from("leave_balances")
+        .update({
+          used: Number(newBalanceRes.data.used ?? 0) + totalDays,
+          updated_at: nowIso,
+        })
+        .eq("id", newBalanceRes.data.id);
+
+      if (newBalanceError) {
+        throw new Error(newBalanceError.message || "Failed to apply new leave balance.");
+      }
+    } else if (requestRow.status === "pending") {
+      const [oldBalanceRes, newBalanceRes] = await Promise.all([
+        supabase
+          .from("leave_balances")
+          .select("*")
+          .eq("user_id", requestRow.user_id)
+          .eq("leave_type_id", requestRow.leave_type_id)
+          .eq("year", year)
+          .maybeSingle(),
+        supabase
+          .from("leave_balances")
+          .select("*")
+          .eq("user_id", requestRow.user_id)
+          .eq("leave_type_id", nextLeaveTypeId)
+          .eq("year", year)
+          .maybeSingle(),
+      ]);
+
+      if (oldBalanceRes.error || newBalanceRes.error) {
+        throw new Error("Failed to read leave balances.");
+      }
+
+      if (!newBalanceRes.data) {
+        throw new Error("New leave type balance not found for this employee and year.");
+      }
+
+      if (oldBalanceRes.data) {
+        const { error } = await supabase
+          .from("leave_balances")
+          .update({
+            pending: Math.max(0, Number(oldBalanceRes.data.pending ?? 0) - totalDays),
+            updated_at: nowIso,
+          })
+          .eq("id", oldBalanceRes.data.id);
+
+        if (error) {
+          throw new Error(error.message || "Failed to restore old pending balance.");
+        }
+      }
+
+      const { error: newBalanceError } = await supabase
+        .from("leave_balances")
+        .update({
+          pending: Number(newBalanceRes.data.pending ?? 0) + totalDays,
+          updated_at: nowIso,
+        })
+        .eq("id", newBalanceRes.data.id);
+
+      if (newBalanceError) {
+        throw new Error(newBalanceError.message || "Failed to apply new pending balance.");
+      }
+    }
+
+    const { error: updateError } = await supabase
+      .from("leave_requests")
+      .update({
+        leave_type_id: nextLeaveTypeId,
+        updated_at: nowIso,
+      })
+      .eq("id", requestId);
+
+    if (updateError) {
+      throw new Error(updateError.message || "Failed to update leave request type.");
+    }
+  },
 };
