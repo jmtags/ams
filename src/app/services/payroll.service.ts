@@ -497,7 +497,10 @@ export const payrollService = {
       ).length;
 
       const rawLateMinutes = userAttendance.reduce(
-        (sum, row) => sum + Number(row.minutes_late ?? 0),
+        (sum, row) => {
+          const minutesLate = Number(row.minutes_late ?? 0);
+          return minutesLate >= 15 ? sum + minutesLate : sum;
+        },
         0
       );
 
@@ -625,15 +628,8 @@ export const payrollService = {
         }
       });
 
-      let lateDeduction = 0;
-      if (comp.late_deduction_mode === "per_minute") {
-        lateDeduction = lateMinutes * Number(comp.late_deduction_rate ?? 0);
-      } else if (comp.late_deduction_mode === "per_hour") {
-        lateDeduction =
-          (lateMinutes / 60) * Number(comp.late_deduction_rate ?? 0);
-      } else if (comp.late_deduction_mode === "fixed") {
-        lateDeduction = Number(comp.late_deduction_rate ?? 0);
-      }
+      const lateDeduction =
+        employmentType === "regular" ? (lateMinutes / 60) * hourlyRate : 0;
 
       const overtimePay =
         (overtimeMinutes / 60) * overtimeHourlyRate * regularOtMultiplier;
