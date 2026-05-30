@@ -377,7 +377,7 @@ export const adminLeaveRequestService = {
 
     const { data: leaveTypeRow, error: leaveTypeError } = await supabase
       .from("leave_types")
-      .select("id")
+      .select("id, is_paid, counts_for_payroll")
       .eq("id", nextLeaveTypeId)
       .single();
 
@@ -388,6 +388,8 @@ export const adminLeaveRequestService = {
     const nowIso = new Date().toISOString();
     const totalDays = Number(requestRow.total_days ?? 0);
     const year = new Date(requestRow.date_from).getFullYear();
+    const shouldAffectNewBalance =
+      leaveTypeRow.counts_for_payroll === true && leaveTypeRow.is_paid === true;
     const createBalance = async () => {
       const { data, error } = await supabase
         .from("leave_balances")
@@ -435,8 +437,6 @@ export const adminLeaveRequestService = {
         throw new Error(newBalanceRes.error.message || "Failed to read new leave balance.");
       }
 
-      const newBalanceRow = newBalanceRes.data ?? await createBalance();
-
       if (oldBalanceRes.data) {
         const { error } = await supabase
           .from("leave_balances")
@@ -451,16 +451,20 @@ export const adminLeaveRequestService = {
         }
       }
 
-      const { error: newBalanceError } = await supabase
-        .from("leave_balances")
-        .update({
-          used: Number(newBalanceRow.used ?? 0) + totalDays,
-          updated_at: nowIso,
-        })
-        .eq("id", newBalanceRow.id);
+      if (shouldAffectNewBalance) {
+        const newBalanceRow = newBalanceRes.data ?? await createBalance();
 
-      if (newBalanceError) {
-        throw new Error(newBalanceError.message || "Failed to apply new leave balance.");
+        const { error: newBalanceError } = await supabase
+          .from("leave_balances")
+          .update({
+            used: Number(newBalanceRow.used ?? 0) + totalDays,
+            updated_at: nowIso,
+          })
+          .eq("id", newBalanceRow.id);
+
+        if (newBalanceError) {
+          throw new Error(newBalanceError.message || "Failed to apply new leave balance.");
+        }
       }
     } else if (requestRow.status === "pending") {
       const [oldBalanceRes, newBalanceRes] = await Promise.all([
@@ -484,8 +488,6 @@ export const adminLeaveRequestService = {
         throw new Error("Failed to read leave balances.");
       }
 
-      const newBalanceRow = newBalanceRes.data ?? await createBalance();
-
       if (oldBalanceRes.data) {
         const { error } = await supabase
           .from("leave_balances")
@@ -500,16 +502,20 @@ export const adminLeaveRequestService = {
         }
       }
 
-      const { error: newBalanceError } = await supabase
-        .from("leave_balances")
-        .update({
-          pending: Number(newBalanceRow.pending ?? 0) + totalDays,
-          updated_at: nowIso,
-        })
-        .eq("id", newBalanceRow.id);
+      if (shouldAffectNewBalance) {
+        const newBalanceRow = newBalanceRes.data ?? await createBalance();
 
-      if (newBalanceError) {
-        throw new Error(newBalanceError.message || "Failed to apply new pending balance.");
+        const { error: newBalanceError } = await supabase
+          .from("leave_balances")
+          .update({
+            pending: Number(newBalanceRow.pending ?? 0) + totalDays,
+            updated_at: nowIso,
+          })
+          .eq("id", newBalanceRow.id);
+
+        if (newBalanceError) {
+          throw new Error(newBalanceError.message || "Failed to apply new pending balance.");
+        }
       }
     }
 
