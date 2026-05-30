@@ -34,17 +34,20 @@ import { userService, type User } from "../services/user.service";
 import {
   employeeCompensationService,
   type EmployeeCompensation,
+  type EmploymentType,
   type PayType,
 } from "../services/employee-compensation.service";
 
 type FormState = {
   user_id: string;
   pay_type: PayType;
+  employment_type: EmploymentType;
   basic_monthly_rate: string;
   daily_rate: string;
   hourly_rate: string;
   allowance_amount: string;
   overtime_hourly_rate: string;
+  unpaid_break_minutes: string;
   late_deduction_mode: "none" | "per_minute" | "per_hour" | "fixed";
   late_deduction_rate: string;
   undertime_deduction_rate: string;
@@ -54,14 +57,24 @@ type FormState = {
   is_active: boolean;
 };
 
+type CompensationTableRow = {
+  id: string;
+  user_id: string;
+  user_name: string;
+  user_email: string | null;
+  record: EmployeeCompensation | null;
+};
+
 const defaultForm: FormState = {
   user_id: "",
   pay_type: "monthly",
+  employment_type: "regular",
   basic_monthly_rate: "0",
   daily_rate: "0",
   hourly_rate: "0",
   allowance_amount: "0",
   overtime_hourly_rate: "0",
+  unpaid_break_minutes: "60",
   late_deduction_mode: "per_minute",
   late_deduction_rate: "0",
   undertime_deduction_rate: "0",
@@ -86,6 +99,7 @@ export function AdminEmployeeCompensationPage() {
 
   const [search, setSearch] = useState("");
   const [payTypeFilter, setPayTypeFilter] = useState("all");
+  const [employmentTypeFilter, setEmploymentTypeFilter] = useState("all");
   const [userFilter, setUserFilter] = useState("all");
   const [activeFilter, setActiveFilter] = useState("all");
 
@@ -120,10 +134,11 @@ export function AdminEmployeeCompensationPage() {
     }
   };
 
-  const openCreateDialog = () => {
+  const openCreateDialog = (userId = "") => {
     setEditingRecord(null);
     setForm({
       ...defaultForm,
+      user_id: userId,
       effective_from: getTodayDate(),
     });
     setIsDialogOpen(true);
@@ -134,11 +149,13 @@ export function AdminEmployeeCompensationPage() {
     setForm({
       user_id: record.user_id,
       pay_type: record.pay_type,
+      employment_type: record.employment_type,
       basic_monthly_rate: String(record.basic_monthly_rate ?? 0),
       daily_rate: String(record.daily_rate ?? 0),
       hourly_rate: String(record.hourly_rate ?? 0),
       allowance_amount: String(record.allowance_amount ?? 0),
       overtime_hourly_rate: String(record.overtime_hourly_rate ?? 0),
+      unpaid_break_minutes: String(record.unpaid_break_minutes ?? 60),
       late_deduction_mode: record.late_deduction_mode,
       late_deduction_rate: String(record.late_deduction_rate ?? 0),
       undertime_deduction_rate: String(record.undertime_deduction_rate ?? 0),
@@ -189,11 +206,13 @@ export function AdminEmployeeCompensationPage() {
       const payload = {
         user_id: form.user_id,
         pay_type: form.pay_type,
+        employment_type: form.employment_type,
         basic_monthly_rate: parseNumber(form.basic_monthly_rate),
         daily_rate: parseNumber(form.daily_rate),
         hourly_rate: parseNumber(form.hourly_rate),
         allowance_amount: parseNumber(form.allowance_amount),
         overtime_hourly_rate: parseNumber(form.overtime_hourly_rate),
+        unpaid_break_minutes: Math.max(0, Math.round(parseNumber(form.unpaid_break_minutes))),
         late_deduction_mode: form.late_deduction_mode,
         late_deduction_rate: parseNumber(form.late_deduction_rate),
         undertime_deduction_rate: parseNumber(form.undertime_deduction_rate),
@@ -235,14 +254,47 @@ export function AdminEmployeeCompensationPage() {
     }
   };
 
+  const tableRows = useMemo<CompensationTableRow[]>(() => {
+    const rows = records.map((record) => ({
+      id: `record-${record.id}`,
+      user_id: record.user_id,
+      user_name: record.user_name || "",
+      user_email: record.user_email ?? null,
+      record,
+    }));
+
+    const usersWithRecords = new Set(records.map((record) => record.user_id));
+
+    users.forEach((user) => {
+      if (usersWithRecords.has(user.id)) return;
+
+      rows.push({
+        id: `user-${user.id}`,
+        user_id: user.id,
+        user_name: user.name || "",
+        user_email: user.email ?? null,
+        record: null,
+      });
+    });
+
+    return rows.sort((a, b) =>
+      (a.user_name || a.user_email || "").localeCompare(
+        b.user_name || b.user_email || ""
+      )
+    );
+  }, [records, users]);
+
   const filteredRecords = useMemo(() => {
-    return records.filter((record) => {
+    return tableRows.filter((row) => {
+      const record = row.record;
       const haystack = [
-        record.user_name ?? "",
-        record.user_email ?? "",
-        record.pay_type ?? "",
-        record.effective_from ?? "",
-        record.effective_to ?? "",
+        row.user_name ?? "",
+        row.user_email ?? "",
+        record?.pay_type ?? "",
+        record?.employment_type ?? "",
+        record?.effective_from ?? "",
+        record?.effective_to ?? "",
+        record ? "configured" : "not configured",
       ]
         .join(" ")
         .toLowerCase();
@@ -251,25 +303,32 @@ export function AdminEmployeeCompensationPage() {
         return false;
       }
 
-      if (payTypeFilter !== "all" && record.pay_type !== payTypeFilter) {
+      if (payTypeFilter !== "all" && record?.pay_type !== payTypeFilter) {
         return false;
       }
 
-      if (userFilter !== "all" && record.user_id !== userFilter) {
+      if (
+        employmentTypeFilter !== "all" &&
+        record?.employment_type !== employmentTypeFilter
+      ) {
         return false;
       }
 
-      if (activeFilter === "active" && !record.is_active) {
+      if (userFilter !== "all" && row.user_id !== userFilter) {
         return false;
       }
 
-      if (activeFilter === "inactive" && record.is_active) {
+      if (activeFilter === "active" && !record?.is_active) {
+        return false;
+      }
+
+      if (activeFilter === "inactive" && record?.is_active) {
         return false;
       }
 
       return true;
     });
-  }, [records, search, payTypeFilter, userFilter, activeFilter]);
+  }, [tableRows, search, payTypeFilter, employmentTypeFilter, userFilter, activeFilter]);
 
   return (
     <AdminLayout>
@@ -288,7 +347,7 @@ export function AdminEmployeeCompensationPage() {
               Refresh
             </Button>
 
-            <Button onClick={openCreateDialog}>
+            <Button onClick={() => openCreateDialog()}>
               <Plus className="w-4 h-4 mr-2" />
               Add Compensation
             </Button>
@@ -304,7 +363,7 @@ export function AdminEmployeeCompensationPage() {
           </CardHeader>
 
           <CardContent>
-            <div className="grid md:grid-cols-4 gap-4">
+            <div className="grid md:grid-cols-5 gap-4">
               <Input
                 placeholder="Search employee or pay type..."
                 value={search}
@@ -333,6 +392,16 @@ export function AdminEmployeeCompensationPage() {
                 <option value="monthly">Monthly</option>
                 <option value="daily">Daily</option>
                 <option value="hourly">Hourly</option>
+              </select>
+
+              <select
+                className="border rounded px-3 py-2 bg-white"
+                value={employmentTypeFilter}
+                onChange={(e) => setEmploymentTypeFilter(e.target.value)}
+              >
+                <option value="all">All Employment Types</option>
+                <option value="regular">Regular</option>
+                <option value="part_time">Part-time</option>
               </select>
 
               <select
@@ -366,10 +435,12 @@ export function AdminEmployeeCompensationPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Employee</TableHead>
+                    <TableHead>Employment</TableHead>
                     <TableHead>Pay Type</TableHead>
                     <TableHead>Monthly</TableHead>
                     <TableHead>Daily</TableHead>
                     <TableHead>Hourly</TableHead>
+                    <TableHead>Break</TableHead>
                     <TableHead>Allowance</TableHead>
                     <TableHead>Effective From</TableHead>
                     <TableHead>Effective To</TableHead>
@@ -381,54 +452,102 @@ export function AdminEmployeeCompensationPage() {
                 <TableBody>
                   {filteredRecords.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={10} className="text-center py-8">
+                      <TableCell colSpan={12} className="text-center py-8">
                         No compensation records found.
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredRecords.map((record) => (
-                      <TableRow key={record.id}>
+                    filteredRecords.map((row) => {
+                      const record = row.record;
+
+                      return (
+                      <TableRow key={row.id}>
                         <TableCell>
-                          <div className="font-medium">{record.user_name || "-"}</div>
+                          <div className="font-medium">{row.user_name || "-"}</div>
                           <div className="text-xs text-neutral-500">
-                            {record.user_email || "-"}
+                            {row.user_email || "-"}
                           </div>
                         </TableCell>
-                        <TableCell className="capitalize">{record.pay_type}</TableCell>
-                        <TableCell>{Number(record.basic_monthly_rate ?? 0).toFixed(2)}</TableCell>
-                        <TableCell>{Number(record.daily_rate ?? 0).toFixed(2)}</TableCell>
-                        <TableCell>{Number(record.hourly_rate ?? 0).toFixed(2)}</TableCell>
-                        <TableCell>{Number(record.allowance_amount ?? 0).toFixed(2)}</TableCell>
-                        <TableCell>{record.effective_from}</TableCell>
-                        <TableCell>{record.effective_to || "-"}</TableCell>
                         <TableCell>
-                          <Badge variant={record.is_active ? "default" : "outline"}>
-                            {record.is_active ? "Active" : "Inactive"}
+                          {record ? (
+                            <Badge variant="outline">
+                              {record.employment_type === "part_time"
+                                ? "Part-time"
+                                : "Regular"}
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline">Not configured</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="capitalize">
+                          {record?.pay_type ?? "-"}
+                        </TableCell>
+                        <TableCell>
+                          {record
+                            ? Number(record.basic_monthly_rate ?? 0).toFixed(2)
+                            : "-"}
+                        </TableCell>
+                        <TableCell>
+                          {record ? Number(record.daily_rate ?? 0).toFixed(2) : "-"}
+                        </TableCell>
+                        <TableCell>
+                          {record ? Number(record.hourly_rate ?? 0).toFixed(2) : "-"}
+                        </TableCell>
+                        <TableCell>
+                          {record ? `${Number(record.unpaid_break_minutes ?? 0)} min` : "-"}
+                        </TableCell>
+                        <TableCell>
+                          {record
+                            ? Number(record.allowance_amount ?? 0).toFixed(2)
+                            : "-"}
+                        </TableCell>
+                        <TableCell>{record?.effective_from ?? "-"}</TableCell>
+                        <TableCell>{record?.effective_to || "-"}</TableCell>
+                        <TableCell>
+                          <Badge variant={record?.is_active ? "default" : "outline"}>
+                            {record
+                              ? record.is_active
+                                ? "Active"
+                                : "Inactive"
+                              : "Missing"}
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => openEditDialog(record)}
-                            >
-                              <Pencil className="w-4 h-4 mr-1" />
-                              Edit
-                            </Button>
+                            {record ? (
+                              <>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => openEditDialog(record)}
+                                >
+                                  <Pencil className="w-4 h-4 mr-1" />
+                                  Edit
+                                </Button>
 
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleDelete(record)}
-                            >
-                              <Trash2 className="w-4 h-4 mr-1" />
-                              Delete
-                            </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleDelete(record)}
+                                >
+                                  <Trash2 className="w-4 h-4 mr-1" />
+                                  Delete
+                                </Button>
+                              </>
+                            ) : (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => openCreateDialog(row.user_id)}
+                              >
+                                <Plus className="w-4 h-4 mr-1" />
+                                Configure
+                              </Button>
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>
-                    ))
+                    )})
                   )}
                 </TableBody>
               </Table>
@@ -450,7 +569,7 @@ export function AdminEmployeeCompensationPage() {
             <form onSubmit={handleSubmit}>
               <DialogBody>
                 <div className="space-y-4">
-                  <div className="grid md:grid-cols-2 gap-4">
+                  <div className="grid md:grid-cols-3 gap-4">
                     <div>
                       <label className="block text-sm font-medium mb-1">Employee</label>
                       <select
@@ -485,6 +604,29 @@ export function AdminEmployeeCompensationPage() {
                         <option value="monthly">Monthly</option>
                         <option value="daily">Daily</option>
                         <option value="hourly">Hourly</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium mb-1">
+                        Employment Type
+                      </label>
+                      <select
+                        className="w-full border rounded px-3 py-2 bg-white"
+                        value={form.employment_type}
+                        onChange={(e) =>
+                          setForm((prev) => ({
+                            ...prev,
+                            employment_type: e.target.value as EmploymentType,
+                            unpaid_break_minutes:
+                              e.target.value === "part_time"
+                                ? prev.unpaid_break_minutes
+                                : prev.unpaid_break_minutes || "60",
+                          }))
+                        }
+                      >
+                        <option value="regular">Regular</option>
+                        <option value="part_time">Part-time</option>
                       </select>
                     </div>
                   </div>
@@ -573,6 +715,26 @@ export function AdminEmployeeCompensationPage() {
 
                     <div>
                       <label className="block text-sm font-medium mb-1">
+                        Unpaid Break Minutes
+                      </label>
+                      <Input
+                        type="number"
+                        step="1"
+                        min="0"
+                        value={form.unpaid_break_minutes}
+                        onChange={(e) =>
+                          setForm((prev) => ({
+                            ...prev,
+                            unpaid_break_minutes: e.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-1">
                         Late Deduction Mode
                       </label>
                       <select
@@ -595,9 +757,7 @@ export function AdminEmployeeCompensationPage() {
                         <option value="fixed">Fixed</option>
                       </select>
                     </div>
-                  </div>
 
-                  <div className="grid md:grid-cols-3 gap-4">
                     <div>
                       <label className="block text-sm font-medium mb-1">
                         Late Deduction Rate

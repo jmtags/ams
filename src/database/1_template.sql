@@ -254,11 +254,17 @@ create table if not exists public.employee_compensation (
       'daily'::text,
       'hourly'::text
     ])),
+  employment_type text not null default 'regular'::text
+    check (employment_type = any (array[
+      'regular'::text,
+      'part_time'::text
+    ])),
   basic_monthly_rate numeric default 0,
   daily_rate numeric default 0,
   hourly_rate numeric default 0,
   allowance_amount numeric not null default 0,
   overtime_hourly_rate numeric default 0,
+  unpaid_break_minutes integer not null default 60,
   late_deduction_mode text not null default 'per_minute'::text
     check (late_deduction_mode = any (array[
       'none'::text,
@@ -322,7 +328,14 @@ create table if not exists public.payroll_records (
   basic_rate numeric not null default 0,
   daily_rate numeric not null default 0,
   hourly_rate numeric not null default 0,
+  employment_type text not null default 'regular'::text
+    check (employment_type = any (array[
+      'regular'::text,
+      'part_time'::text
+    ])),
+  unpaid_break_minutes integer not null default 60,
   total_work_days numeric not null default 0,
+  total_work_minutes integer not null default 0,
   total_paid_leave_days numeric not null default 0,
   total_unpaid_leave_days numeric not null default 0,
   total_absent_days numeric not null default 0,

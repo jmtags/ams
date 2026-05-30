@@ -7,6 +7,8 @@ export interface LeaveType {
   description: string | null;
   requires_attachment: boolean;
   is_active: boolean;
+  is_paid: boolean;
+  counts_for_payroll: boolean;
   created_at: string;
 }
 
@@ -16,6 +18,8 @@ export interface LeaveTypePayload {
   description?: string | null;
   requires_attachment?: boolean;
   is_active?: boolean;
+  is_paid?: boolean;
+  counts_for_payroll?: boolean;
 }
 
 const mapLeaveType = (record: any): LeaveType => ({
@@ -25,6 +29,8 @@ const mapLeaveType = (record: any): LeaveType => ({
   description: record.description ?? null,
   requires_attachment: Boolean(record.requires_attachment),
   is_active: Boolean(record.is_active),
+  is_paid: record.is_paid !== false,
+  counts_for_payroll: record.counts_for_payroll !== false,
   created_at: record.created_at,
 });
 
@@ -82,6 +88,8 @@ export const leaveTypeService = {
           description: payload.description?.trim() || null,
           requires_attachment: payload.requires_attachment ?? false,
           is_active: payload.is_active ?? true,
+          is_paid: payload.is_paid ?? true,
+          counts_for_payroll: payload.counts_for_payroll ?? true,
         },
       ])
       .select("*")
@@ -112,6 +120,8 @@ export const leaveTypeService = {
         description: payload.description?.trim() || null,
         requires_attachment: payload.requires_attachment ?? false,
         is_active: payload.is_active ?? true,
+        is_paid: payload.is_paid ?? true,
+        counts_for_payroll: payload.counts_for_payroll ?? true,
       })
       .eq("id", id)
       .select("*")

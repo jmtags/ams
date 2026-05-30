@@ -38,6 +38,8 @@ const currency = (value: number) =>
     maximumFractionDigits: 2,
   }).format(Number(value || 0));
 
+const hours = (minutes: number) => (Number(minutes || 0) / 60).toFixed(2);
+
 const getStatusBadgeVariant = (status: string) => {
   switch (status) {
     case "draft":
@@ -263,6 +265,14 @@ export function UserPayslipDetailsPage() {
                   <p className="text-lg font-semibold mt-2 capitalize">
                     {record.pay_type}
                   </p>
+                  <p className="text-xs text-neutral-500 mt-1">
+                    {record.employment_type === "part_time"
+                      ? "Part-time"
+                      : "Regular"}
+                    {record.employment_type === "part_time"
+                      ? `, ${Number(record.unpaid_break_minutes ?? 0)} min break`
+                      : ""}
+                  </p>
                 </CardContent>
               </Card>
 
@@ -301,6 +311,13 @@ export function UserPayslipDetailsPage() {
                     <p className="text-sm text-neutral-500">Worked Days</p>
                     <p className="text-xl font-semibold mt-2">
                       {Number(record.total_work_days ?? 0)}
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl border p-4">
+                    <p className="text-sm text-neutral-500">Paid Work Hours</p>
+                    <p className="text-xl font-semibold mt-2">
+                      {hours(record.total_work_minutes)}
                     </p>
                   </div>
 

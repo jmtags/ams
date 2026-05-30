@@ -5,10 +5,13 @@ export type PayrollRecord = {
   payroll_period_id: string;
   user_id: string;
   pay_type: "monthly" | "daily" | "hourly";
+  employment_type: "regular" | "part_time";
   basic_rate: number;
   daily_rate: number;
   hourly_rate: number;
+  unpaid_break_minutes: number;
   total_work_days: number;
+  total_work_minutes: number;
   total_paid_leave_days: number;
   total_unpaid_leave_days: number;
   total_absent_days: number;
@@ -87,12 +90,38 @@ const workedStatuses = [
   "worked_holiday_restday",
 ];
 
+const holidayStatuses = ["holiday", "worked_holiday"];
+const restDayStatuses = ["restday", "worked_restday"];
+const holidayRestDayStatuses = ["holiday_restday", "worked_holiday_restday"];
+
+const hasWorked = (row: any) => Boolean(row.clock_in || row.clock_out);
+
+const getWorkedDayPayBase = (payType: string, dailyRate: number, hourlyRate: number, hoursPerDay: number) =>
+  payType === "hourly" ? hourlyRate * hoursPerDay : dailyRate;
+
+const isPaidHolidayAttendance = (row: any, holidays: any[]) => {
+  if (!row.is_holiday && !holidayStatuses.includes(row.status) && !holidayRestDayStatuses.includes(row.status)) {
+    return false;
+  }
+
+  const holiday = holidays.find((item) => {
+    if (item.holiday_date !== row.date) return false;
+    if (!item.location_id) return true;
+    return !row.location_id || item.location_id === row.location_id;
+  });
+
+  return holiday ? holiday.is_paid !== false : true;
+};
+
 const mapPayrollRecord = (row: any): PayrollRecord => ({
   ...row,
+  employment_type: row.employment_type ?? "regular",
   basic_rate: Number(row.basic_rate ?? 0),
   daily_rate: Number(row.daily_rate ?? 0),
   hourly_rate: Number(row.hourly_rate ?? 0),
+  unpaid_break_minutes: Number(row.unpaid_break_minutes ?? 60),
   total_work_days: Number(row.total_work_days ?? 0),
+  total_work_minutes: Number(row.total_work_minutes ?? 0),
   total_paid_leave_days: Number(row.total_paid_leave_days ?? 0),
   total_unpaid_leave_days: Number(row.total_unpaid_leave_days ?? 0),
   total_absent_days: Number(row.total_absent_days ?? 0),
@@ -141,6 +170,35 @@ const isDateWithinRange = (
 ) => {
   if (!value) return false;
   return value >= from && value <= to;
+};
+
+const diffMinutes = (
+  start: string | null | undefined,
+  end: string | null | undefined
+) => {
+  if (!start || !end) return 0;
+  const startTime = new Date(start).getTime();
+  const endTime = new Date(end).getTime();
+  if (!Number.isFinite(startTime) || !Number.isFinite(endTime)) return 0;
+  return Math.max(0, Math.round((endTime - startTime) / 60000));
+};
+
+const getAttendanceOvertimeMinutes = (row: any) =>
+  Number(row.approved_overtime_minutes ?? row.minutes_overtime ?? 0);
+
+const getPartTimeRegularWorkMinutes = (
+  row: any,
+  unpaidBreakMinutes: number
+) => {
+  const elapsedMinutes = diffMinutes(row.clock_in, row.clock_out);
+  if (elapsedMinutes <= 0) return 0;
+
+  return Math.max(
+    0,
+    elapsedMinutes -
+      Math.max(0, unpaidBreakMinutes || 0) -
+      Math.max(0, getAttendanceOvertimeMinutes(row))
+  );
 };
 
 const overlapsDateRange = (
@@ -288,6 +346,7 @@ export const payrollService = {
       compensationRes,
       attendanceRes,
       leaveRes,
+      holidaysRes,
       settingsRes,
       adjustmentsRes,
       recurringRes,
@@ -320,6 +379,11 @@ export const payrollService = {
         .gte("leave_date", period.date_from)
         .lte("leave_date", period.date_to)
         .eq("leave_requests.status", "approved"),
+      supabase
+        .from("holidays")
+        .select("id, holiday_date, location_id, is_paid")
+        .gte("holiday_date", period.date_from)
+        .lte("holiday_date", period.date_to),
       supabase.from("payroll_settings").select("*").limit(1).maybeSingle(),
       supabase
         .from("payroll_adjustments")
@@ -335,6 +399,7 @@ export const payrollService = {
     if (compensationRes.error) throw compensationRes.error;
     if (attendanceRes.error) throw attendanceRes.error;
     if (leaveRes.error) throw leaveRes.error;
+    if (holidaysRes.error) throw holidaysRes.error;
     if (settingsRes.error) throw settingsRes.error;
     if (adjustmentsRes.error) throw adjustmentsRes.error;
     if (recurringRes.error) throw recurringRes.error;
@@ -343,6 +408,7 @@ export const payrollService = {
     const compensations = compensationRes.data ?? [];
     const attendanceRows = attendanceRes.data ?? [];
     const leaveRows = leaveRes.data ?? [];
+    const holidays = holidaysRes.data ?? [];
     const settings = settingsRes.data;
     const adjustments = adjustmentsRes.data ?? [];
     const recurringDeductions = recurringRes.data ?? [];
@@ -353,6 +419,11 @@ export const payrollService = {
     const defaultHoursPerDay = Number(settings?.default_hours_per_day ?? 8);
     const regularOtMultiplier = Number(
       settings?.overtime_multiplier_regular ?? 1.25
+    );
+    const restDayMultiplier = Number(settings?.restday_multiplier ?? 1.3);
+    const holidayMultiplier = Number(settings?.holiday_multiplier ?? 2);
+    const holidayRestDayMultiplier = Number(
+      settings?.holiday_restday_multiplier ?? 2.6
     );
 
     const compensationByUser = new Map<string, any>();
@@ -428,8 +499,7 @@ export const payrollService = {
       );
 
       const overtimeMinutes = userAttendance.reduce(
-        (sum, row) =>
-          sum + Number(row.approved_overtime_minutes ?? row.minutes_overtime ?? 0),
+        (sum, row) => sum + getAttendanceOvertimeMinutes(row),
         0
       );
 
@@ -438,20 +508,24 @@ export const payrollService = {
 
       userLeaves.forEach((row: any) => {
         const leaveType = row.leave_requests?.leave_types;
-        const countsForPayroll = leaveType?.counts_for_payroll ?? true;
-        const isPaid = leaveType?.is_paid ?? true;
+        const countsForPayroll = leaveType?.counts_for_payroll === true;
+        const isPaid = leaveType?.is_paid === true;
         const dayValue = Number(row.day_value ?? 1);
 
-        if (!countsForPayroll) return;
-
-        if (isPaid) {
+        if (countsForPayroll && isPaid) {
           paidLeaveDays += dayValue;
-        } else {
+        } else if (countsForPayroll) {
           unpaidLeaveDays += dayValue;
         }
       });
 
       const payType = comp.pay_type as "monthly" | "daily" | "hourly";
+      const employmentType =
+        comp.employment_type === "part_time" ? "part_time" : "regular";
+      const unpaidBreakMinutes = Math.max(
+        0,
+        Number(comp.unpaid_break_minutes ?? 60)
+      );
       const basicMonthlyRate = Number(comp.basic_monthly_rate ?? 0);
       const dailyRate =
         Number(comp.daily_rate ?? 0) ||
@@ -466,22 +540,86 @@ export const payrollService = {
       let basicPay = 0;
       let leavePay = 0;
       let absentDeduction = 0;
+      let workMinutes = 0;
 
-      if (payType === "daily") {
+      if (employmentType === "part_time") {
+        workMinutes = userAttendance.reduce(
+          (sum, row) =>
+            workedStatuses.includes(row.status)
+              ? sum + getPartTimeRegularWorkMinutes(row, unpaidBreakMinutes)
+              : sum,
+          0
+        );
+        basicPay = (workMinutes / 60) * hourlyRate;
+        leavePay = paidLeaveDays * defaultHoursPerDay * hourlyRate;
+        absentDeduction = 0;
+      } else if (payType === "daily") {
+        workMinutes = workedDays * defaultHoursPerDay * 60;
         basicPay = workedDays * dailyRate;
         leavePay = paidLeaveDays * dailyRate;
         absentDeduction = (unpaidLeaveDays + absentDays) * dailyRate;
       } else if (payType === "hourly") {
+        workMinutes = workedDays * defaultHoursPerDay * 60;
         basicPay = workedDays * defaultHoursPerDay * hourlyRate;
         leavePay = paidLeaveDays * defaultHoursPerDay * hourlyRate;
         absentDeduction =
           (unpaidLeaveDays + absentDays) * defaultHoursPerDay * hourlyRate;
       } else {
         const semiMonthlyBase = basicMonthlyRate / 2;
+        workMinutes = workedDays * defaultHoursPerDay * 60;
         basicPay = semiMonthlyBase;
         leavePay = 0;
         absentDeduction = (unpaidLeaveDays + absentDays) * dailyRate;
       }
+
+      let holidayPay = 0;
+      let restDayPay = 0;
+      const dayPayBase = getWorkedDayPayBase(
+        payType,
+        dailyRate,
+        hourlyRate,
+        defaultHoursPerDay
+      );
+
+      userAttendance.forEach((row) => {
+        const status = String(row.status || "").toLowerCase();
+        const worked = hasWorked(row);
+        const paidHoliday = isPaidHolidayAttendance(row, holidays);
+
+        if (employmentType === "part_time") {
+          if (!worked) return;
+
+          const actualHours =
+            getPartTimeRegularWorkMinutes(row, unpaidBreakMinutes) / 60;
+          const actualBasePay = actualHours * hourlyRate;
+
+          if (paidHoliday && holidayRestDayStatuses.includes(status)) {
+            holidayPay += actualBasePay * (holidayRestDayMultiplier - 1);
+          } else if (paidHoliday && holidayStatuses.includes(status)) {
+            holidayPay += actualBasePay * (holidayMultiplier - 1);
+          } else if (restDayStatuses.includes(status)) {
+            restDayPay += actualBasePay * (restDayMultiplier - 1);
+          }
+
+          return;
+        }
+
+        if (paidHoliday && holidayRestDayStatuses.includes(status)) {
+          holidayPay += worked
+            ? dayPayBase * (holidayRestDayMultiplier - 1)
+            : payType === "monthly"
+              ? 0
+              : dayPayBase;
+        } else if (paidHoliday && holidayStatuses.includes(status)) {
+          holidayPay += worked
+            ? dayPayBase * (holidayMultiplier - 1)
+            : payType === "monthly"
+              ? 0
+              : dayPayBase;
+        } else if (restDayStatuses.includes(status) && worked) {
+          restDayPay += dayPayBase * (restDayMultiplier - 1);
+        }
+      });
 
       let lateDeduction = 0;
       if (comp.late_deduction_mode === "per_minute") {
@@ -517,7 +655,13 @@ export const payrollService = {
 
         if ((ded.deduction_type ?? "fixed") === "percentage") {
           recurringDeductionTotal +=
-            (basicPay + leavePay + overtimePay + allowancePay + additions) *
+            (basicPay +
+              leavePay +
+              overtimePay +
+              holidayPay +
+              restDayPay +
+              allowancePay +
+              additions) *
             (amount / 100);
         } else {
           recurringDeductionTotal += amount;
@@ -529,7 +673,13 @@ export const payrollService = {
       );
 
       const grossPay = round2(
-        basicPay + leavePay + overtimePay + allowancePay + additions
+        basicPay +
+          leavePay +
+          overtimePay +
+          holidayPay +
+          restDayPay +
+          allowancePay +
+          additions
       );
 
       const totalDeductions = round2(
@@ -542,10 +692,13 @@ export const payrollService = {
         payroll_period_id: payrollPeriodId,
         user_id: user.id,
         pay_type: payType,
+        employment_type: employmentType,
         basic_rate: basicMonthlyRate,
         daily_rate: dailyRate,
         hourly_rate: hourlyRate,
+        unpaid_break_minutes: unpaidBreakMinutes,
         total_work_days: workedDays,
+        total_work_minutes: workMinutes,
         total_paid_leave_days: paidLeaveDays,
         total_unpaid_leave_days: unpaidLeaveDays,
         total_absent_days: absentDays,
@@ -554,8 +707,8 @@ export const payrollService = {
         basic_pay: round2(basicPay),
         leave_pay: round2(leavePay),
         overtime_pay: round2(overtimePay),
-        holiday_pay: 0,
-        restday_pay: 0,
+        holiday_pay: round2(holidayPay),
+        restday_pay: round2(restDayPay),
         allowance_pay: round2(allowancePay),
         gross_pay: grossPay,
         late_deduction: round2(lateDeduction),
@@ -627,12 +780,15 @@ export const payrollService = {
         recurringByUser.get(record.user_id) ?? [];
 
       if (Number(record.basic_pay ?? 0) > 0) {
+        const isPartTime = record.employment_type === "part_time";
         itemsToInsert.push({
           payroll_record_id: record.id,
           item_type: "basic_pay",
-          description: "Basic Pay",
-          quantity: record.total_work_days,
-          rate: record.daily_rate,
+          description: isPartTime ? "Basic Pay (Part-time Hours)" : "Basic Pay",
+          quantity: isPartTime
+            ? round2(Number(record.total_work_minutes ?? 0) / 60)
+            : record.total_work_days,
+          rate: isPartTime ? record.hourly_rate : record.daily_rate,
           amount: record.basic_pay,
         });
       }
@@ -656,6 +812,28 @@ export const payrollService = {
           quantity: Number(record.total_overtime_minutes ?? 0) / 60,
           rate: record.hourly_rate,
           amount: record.overtime_pay,
+        });
+      }
+
+      if (Number(record.holiday_pay ?? 0) > 0) {
+        itemsToInsert.push({
+          payroll_record_id: record.id,
+          item_type: "holiday_pay",
+          description: "Holiday Pay",
+          quantity: 1,
+          rate: record.holiday_pay,
+          amount: record.holiday_pay,
+        });
+      }
+
+      if (Number(record.restday_pay ?? 0) > 0) {
+        itemsToInsert.push({
+          payroll_record_id: record.id,
+          item_type: "restday_pay",
+          description: "Rest Day Pay",
+          quantity: 1,
+          rate: record.restday_pay,
+          amount: record.restday_pay,
         });
       }
 
@@ -721,6 +899,8 @@ export const payrollService = {
                 (Number(record.basic_pay ?? 0) +
                   Number(record.leave_pay ?? 0) +
                   Number(record.overtime_pay ?? 0) +
+                  Number(record.holiday_pay ?? 0) +
+                  Number(record.restday_pay ?? 0) +
                   Number(record.allowance_pay ?? 0)) *
                   (rawAmount / 100)
               )

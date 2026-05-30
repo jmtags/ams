@@ -51,10 +51,13 @@ const getStatusBadgeVariant = (status: string) => {
 
 const mapPayrollRecord = (row: any): PayrollRecord => ({
   ...row,
+  employment_type: row.employment_type ?? "regular",
   basic_rate: Number(row.basic_rate ?? 0),
   daily_rate: Number(row.daily_rate ?? 0),
   hourly_rate: Number(row.hourly_rate ?? 0),
+  unpaid_break_minutes: Number(row.unpaid_break_minutes ?? 60),
   total_work_days: Number(row.total_work_days ?? 0),
+  total_work_minutes: Number(row.total_work_minutes ?? 0),
   total_paid_leave_days: Number(row.total_paid_leave_days ?? 0),
   total_unpaid_leave_days: Number(row.total_unpaid_leave_days ?? 0),
   total_absent_days: Number(row.total_absent_days ?? 0),

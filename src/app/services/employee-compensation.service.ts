@@ -1,16 +1,19 @@
 import { supabase } from "../lib/supabase";
 
 export type PayType = "monthly" | "daily" | "hourly";
+export type EmploymentType = "regular" | "part_time";
 
 export type EmployeeCompensation = {
   id: string;
   user_id: string;
   pay_type: PayType;
+  employment_type: EmploymentType;
   basic_monthly_rate: number;
   daily_rate: number;
   hourly_rate: number;
   allowance_amount: number;
   overtime_hourly_rate: number;
+  unpaid_break_minutes: number;
   late_deduction_mode: "none" | "per_minute" | "per_hour" | "fixed";
   late_deduction_rate: number;
   undertime_deduction_rate: number;
@@ -28,11 +31,13 @@ export type EmployeeCompensation = {
 export type SaveEmployeeCompensationPayload = {
   user_id: string;
   pay_type: PayType;
+  employment_type?: EmploymentType;
   basic_monthly_rate?: number;
   daily_rate?: number;
   hourly_rate?: number;
   allowance_amount?: number;
   overtime_hourly_rate?: number;
+  unpaid_break_minutes?: number;
   late_deduction_mode?: "none" | "per_minute" | "per_hour" | "fixed";
   late_deduction_rate?: number;
   undertime_deduction_rate?: number;
@@ -46,11 +51,13 @@ const mapCompensation = (row: any): EmployeeCompensation => ({
   id: row.id,
   user_id: row.user_id,
   pay_type: row.pay_type,
+  employment_type: row.employment_type ?? "regular",
   basic_monthly_rate: Number(row.basic_monthly_rate ?? 0),
   daily_rate: Number(row.daily_rate ?? 0),
   hourly_rate: Number(row.hourly_rate ?? 0),
   allowance_amount: Number(row.allowance_amount ?? 0),
   overtime_hourly_rate: Number(row.overtime_hourly_rate ?? 0),
+  unpaid_break_minutes: Number(row.unpaid_break_minutes ?? 60),
   late_deduction_mode: row.late_deduction_mode ?? "per_minute",
   late_deduction_rate: Number(row.late_deduction_rate ?? 0),
   undertime_deduction_rate: Number(row.undertime_deduction_rate ?? 0),
@@ -127,11 +134,13 @@ export const employeeCompensationService = {
       .insert({
         user_id: payload.user_id,
         pay_type: payload.pay_type,
+        employment_type: payload.employment_type ?? "regular",
         basic_monthly_rate: payload.basic_monthly_rate ?? 0,
         daily_rate: payload.daily_rate ?? 0,
         hourly_rate: payload.hourly_rate ?? 0,
         allowance_amount: payload.allowance_amount ?? 0,
         overtime_hourly_rate: payload.overtime_hourly_rate ?? 0,
+        unpaid_break_minutes: payload.unpaid_break_minutes ?? 60,
         late_deduction_mode: payload.late_deduction_mode ?? "per_minute",
         late_deduction_rate: payload.late_deduction_rate ?? 0,
         undertime_deduction_rate: payload.undertime_deduction_rate ?? 0,

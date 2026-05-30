@@ -42,6 +42,8 @@ type FormState = {
   description: string;
   requires_attachment: boolean;
   is_active: boolean;
+  is_paid: boolean;
+  counts_for_payroll: boolean;
 };
 
 const initialForm: FormState = {
@@ -50,6 +52,8 @@ const initialForm: FormState = {
   description: "",
   requires_attachment: false,
   is_active: true,
+  is_paid: true,
+  counts_for_payroll: true,
 };
 
 export default function ManageLeaveTypesPage() {
@@ -108,6 +112,8 @@ export default function ManageLeaveTypesPage() {
       description: leaveType.description ?? "",
       requires_attachment: leaveType.requires_attachment,
       is_active: leaveType.is_active,
+      is_paid: leaveType.is_paid,
+      counts_for_payroll: leaveType.counts_for_payroll,
     });
     setIsDialogOpen(true);
   };
@@ -142,6 +148,8 @@ export default function ManageLeaveTypesPage() {
         description: form.description,
         requires_attachment: form.requires_attachment,
         is_active: form.is_active,
+        is_paid: form.is_paid,
+        counts_for_payroll: form.counts_for_payroll,
       };
 
       if (editingLeaveType) {
@@ -266,6 +274,8 @@ export default function ManageLeaveTypesPage() {
                     <TableHead>Name</TableHead>
                     <TableHead>Description</TableHead>
                     <TableHead>Attachment Required</TableHead>
+                    <TableHead>Paid</TableHead>
+                    <TableHead>Payroll</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Created At</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
@@ -275,13 +285,13 @@ export default function ManageLeaveTypesPage() {
                 <TableBody>
                   {loading ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center">
+                      <TableCell colSpan={9} className="text-center">
                         Loading leave types...
                       </TableCell>
                     </TableRow>
                   ) : leaveTypes.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center">
+                      <TableCell colSpan={9} className="text-center">
                         No leave types found.
                       </TableCell>
                     </TableRow>
@@ -294,6 +304,16 @@ export default function ManageLeaveTypesPage() {
                         <TableCell>
                           <Badge variant={item.requires_attachment ? "default" : "secondary"}>
                             {item.requires_attachment ? "Yes" : "No"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={item.is_paid ? "default" : "secondary"}>
+                            {item.is_paid ? "Paid" : "Unpaid"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={item.counts_for_payroll ? "default" : "secondary"}>
+                            {item.counts_for_payroll ? "Counts" : "Excluded"}
                           </Badge>
                         </TableCell>
                         <TableCell>
@@ -410,6 +430,48 @@ export default function ManageLeaveTypesPage() {
                         setForm((prev) => ({
                           ...prev,
                           requires_attachment: e.target.checked,
+                        }))
+                      }
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between rounded-md border px-3 py-3">
+                    <div>
+                      <p className="text-sm font-medium">Paid Leave</p>
+                      <p className="text-xs text-muted-foreground">
+                        Turn on if approved days for this leave type should be paid.
+                      </p>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={form.is_paid}
+                      onChange={(e) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          is_paid: e.target.checked,
+                          counts_for_payroll: e.target.checked
+                            ? true
+                            : prev.counts_for_payroll,
+                        }))
+                      }
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between rounded-md border px-3 py-3">
+                    <div>
+                      <p className="text-sm font-medium">Counts for Payroll</p>
+                      <p className="text-xs text-muted-foreground">
+                        Turn off for leave types that should not affect payroll pay or deductions.
+                      </p>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={form.counts_for_payroll}
+                      onChange={(e) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          counts_for_payroll: e.target.checked,
+                          is_paid: e.target.checked ? prev.is_paid : false,
                         }))
                       }
                     />
