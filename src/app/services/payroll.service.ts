@@ -233,10 +233,35 @@ const getPartTimeBreakMinutes = (elapsedMinutes: number) => {
 const getPartTimeAttendanceBreakMinutes = (row: any) =>
   getPartTimeBreakMinutes(diffMinutes(row.clock_in, row.clock_out));
 
+const getAttendanceElapsedMinutes = (row: any) => {
+  const actualMinutes = diffMinutes(row.clock_in, row.clock_out);
+  if (actualMinutes > 0) return actualMinutes;
+  if (row.clock_in && !row.clock_out) {
+    return diffMinutes(row.scheduled_start, row.scheduled_end);
+  }
+  return 0;
+};
+
 const getRegularAttendanceBreakMinutes = (row: any, breakMinutes: number) => {
   if (breakMinutes <= 0) return 0;
-  const elapsedMinutes = diffMinutes(row.clock_in, row.clock_out);
+  const elapsedMinutes = getAttendanceElapsedMinutes(row);
   return elapsedMinutes >= 4 * 60 ? breakMinutes : 0;
+};
+
+const getRegularAttendanceWorkMinutes = (
+  row: any,
+  breakMinutes: number,
+  maxPaidMinutes: number
+) => {
+  const elapsedMinutes = getAttendanceElapsedMinutes(row);
+  if (elapsedMinutes <= 0) return 0;
+
+  const paidMinutes =
+    elapsedMinutes -
+    getRegularAttendanceBreakMinutes(row, breakMinutes) -
+    Math.max(0, getAttendanceOvertimeMinutes(row));
+
+  return Math.max(0, Math.min(maxPaidMinutes, paidMinutes));
 };
 
 const getPartTimeRegularWorkMinutes = (row: any) => {
@@ -589,6 +614,7 @@ export const payrollService = {
         (dailyRate > 0 ? dailyRate / defaultHoursPerDay : 0);
       const overtimeHourlyRate = hourlyRate * regularOtMultiplier;
       const allowancePay = Number(comp.allowance_amount ?? 0);
+      const regularPaidMinutesPerDay = defaultHoursPerDay * 60;
 
       let basicPay = 0;
       let leavePay = 0;
@@ -615,7 +641,18 @@ export const payrollService = {
         leavePay = paidLeaveDays * defaultHoursPerDay * hourlyRate;
         absentDeduction = 0;
       } else if (payType === "daily") {
-        workMinutes = workedDays * defaultHoursPerDay * 60;
+        workMinutes = userAttendance.reduce(
+          (sum, row) =>
+            workedStatuses.includes(row.status)
+              ? sum +
+                getRegularAttendanceWorkMinutes(
+                  row,
+                  unpaidBreakMinutes,
+                  regularPaidMinutesPerDay
+                )
+              : sum,
+          0
+        );
         breakMinutes = userAttendance.reduce(
           (sum, row) =>
             workedStatuses.includes(row.status)
@@ -623,11 +660,22 @@ export const payrollService = {
               : sum,
           0
         );
-        basicPay = workedDays * dailyRate;
+        basicPay = (workMinutes / regularPaidMinutesPerDay) * dailyRate;
         leavePay = paidLeaveDays * dailyRate;
         absentDeduction = 0;
       } else if (payType === "hourly") {
-        workMinutes = workedDays * defaultHoursPerDay * 60;
+        workMinutes = userAttendance.reduce(
+          (sum, row) =>
+            workedStatuses.includes(row.status)
+              ? sum +
+                getRegularAttendanceWorkMinutes(
+                  row,
+                  unpaidBreakMinutes,
+                  regularPaidMinutesPerDay
+                )
+              : sum,
+          0
+        );
         breakMinutes = userAttendance.reduce(
           (sum, row) =>
             workedStatuses.includes(row.status)
@@ -635,12 +683,23 @@ export const payrollService = {
               : sum,
           0
         );
-        basicPay = workedDays * defaultHoursPerDay * hourlyRate;
+        basicPay = (workMinutes / 60) * hourlyRate;
         leavePay = paidLeaveDays * defaultHoursPerDay * hourlyRate;
         absentDeduction = 0;
       } else {
         const semiMonthlyBase = basicMonthlyRate / 2;
-        workMinutes = workedDays * defaultHoursPerDay * 60;
+        workMinutes = userAttendance.reduce(
+          (sum, row) =>
+            workedStatuses.includes(row.status)
+              ? sum +
+                getRegularAttendanceWorkMinutes(
+                  row,
+                  unpaidBreakMinutes,
+                  regularPaidMinutesPerDay
+                )
+              : sum,
+          0
+        );
         breakMinutes = userAttendance.reduce(
           (sum, row) =>
             workedStatuses.includes(row.status)
