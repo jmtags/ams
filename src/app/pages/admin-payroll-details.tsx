@@ -41,10 +41,7 @@ const currency = (value: number) =>
 const hours = (minutes: number) => (Number(minutes || 0) / 60).toFixed(2);
 
 const getBreakMinutes = (record: PayrollRecord) =>
-  record.employment_type === "part_time"
-    ? Number(record.total_work_days ?? 0) *
-      Number(record.unpaid_break_minutes ?? 0)
-    : 0;
+  Number(record.unpaid_break_minutes ?? 0);
 
 const getTotalWorkMinutes = (record: PayrollRecord) =>
   Number(record.total_work_minutes ?? 0) + getBreakMinutes(record);

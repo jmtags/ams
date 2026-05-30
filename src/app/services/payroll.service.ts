@@ -230,6 +230,9 @@ const getPartTimeBreakMinutes = (elapsedMinutes: number) => {
   return 0;
 };
 
+const getPartTimeAttendanceBreakMinutes = (row: any) =>
+  getPartTimeBreakMinutes(diffMinutes(row.clock_in, row.clock_out));
+
 const getPartTimeRegularWorkMinutes = (row: any) => {
   const elapsedMinutes = diffMinutes(row.clock_in, row.clock_out);
   if (elapsedMinutes <= 0) return 0;
@@ -585,6 +588,7 @@ export const payrollService = {
       let leavePay = 0;
       let absentDeduction = 0;
       let workMinutes = 0;
+      let breakMinutes = 0;
 
       if (employmentType === "part_time") {
         workMinutes = userAttendance.reduce(
@@ -594,22 +598,32 @@ export const payrollService = {
               : sum,
           0
         );
+        breakMinutes = userAttendance.reduce(
+          (sum, row) =>
+            workedStatuses.includes(row.status)
+              ? sum + getPartTimeAttendanceBreakMinutes(row)
+              : sum,
+          0
+        );
         basicPay = (workMinutes / 60) * hourlyRate;
         leavePay = paidLeaveDays * defaultHoursPerDay * hourlyRate;
         absentDeduction = 0;
       } else if (payType === "daily") {
         workMinutes = workedDays * defaultHoursPerDay * 60;
+        breakMinutes = workedDays * unpaidBreakMinutes;
         basicPay = workedDays * dailyRate;
         leavePay = paidLeaveDays * dailyRate;
         absentDeduction = 0;
       } else if (payType === "hourly") {
         workMinutes = workedDays * defaultHoursPerDay * 60;
+        breakMinutes = workedDays * unpaidBreakMinutes;
         basicPay = workedDays * defaultHoursPerDay * hourlyRate;
         leavePay = paidLeaveDays * defaultHoursPerDay * hourlyRate;
         absentDeduction = 0;
       } else {
         const semiMonthlyBase = basicMonthlyRate / 2;
         workMinutes = workedDays * defaultHoursPerDay * 60;
+        breakMinutes = workedDays * unpaidBreakMinutes;
         basicPay = semiMonthlyBase;
         leavePay = 0;
         absentDeduction = (unpaidLeaveDays + absentDays) * dailyRate;
@@ -746,7 +760,7 @@ export const payrollService = {
         basic_rate: basicMonthlyRate,
         daily_rate: dailyRate,
         hourly_rate: hourlyRate,
-        unpaid_break_minutes: unpaidBreakMinutes,
+        unpaid_break_minutes: breakMinutes,
         total_work_days: workedDays,
         total_work_minutes: workMinutes,
         total_paid_leave_days: paidLeaveDays,
