@@ -601,13 +601,12 @@ export const payrollService = {
         workMinutes = workedDays * defaultHoursPerDay * 60;
         basicPay = workedDays * dailyRate;
         leavePay = paidLeaveDays * dailyRate;
-        absentDeduction = (unpaidLeaveDays + absentDays) * dailyRate;
+        absentDeduction = 0;
       } else if (payType === "hourly") {
         workMinutes = workedDays * defaultHoursPerDay * 60;
         basicPay = workedDays * defaultHoursPerDay * hourlyRate;
         leavePay = paidLeaveDays * defaultHoursPerDay * hourlyRate;
-        absentDeduction =
-          (unpaidLeaveDays + absentDays) * defaultHoursPerDay * hourlyRate;
+        absentDeduction = 0;
       } else {
         const semiMonthlyBase = basicMonthlyRate / 2;
         workMinutes = workedDays * defaultHoursPerDay * 60;
