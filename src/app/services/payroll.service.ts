@@ -183,8 +183,27 @@ const diffMinutes = (
   return Math.max(0, Math.round((endTime - startTime) / 60000));
 };
 
-const getAttendanceOvertimeMinutes = (row: any) =>
-  Number(row.approved_overtime_minutes ?? row.minutes_overtime ?? 0);
+const getAttendanceOvertimeMinutes = (row: any) => {
+  const approvedMinutes = Number(row.approved_overtime_minutes ?? 0);
+  if (approvedMinutes > 0) return approvedMinutes;
+
+  const recordedMinutes = Number(row.minutes_overtime ?? 0);
+  if (recordedMinutes > 0) return recordedMinutes;
+
+  const status = String(row.status ?? "").toLowerCase();
+  const markedOvertime =
+    row.is_overtime === true ||
+    status === "overtime" ||
+    status === "late_overtime";
+
+  if (!markedOvertime) return 0;
+
+  const overtimeAfterMinutes = Number(row.shifts?.overtime_after_minutes ?? 0);
+  return Math.max(
+    0,
+    diffMinutes(row.scheduled_end, row.clock_out) - overtimeAfterMinutes
+  );
+};
 
 const getAttendanceLateMinutes = (row: any) => {
   const recordedMinutes = Number(row.minutes_late ?? 0);
@@ -375,7 +394,7 @@ export const payrollService = {
       supabase.from("employee_compensation").select("*").eq("is_active", true),
       supabase
         .from("attendance")
-        .select("*, shifts ( grace_minutes )")
+        .select("*, shifts ( grace_minutes, overtime_after_minutes )")
         .gte("date", period.date_from)
         .lte("date", period.date_to),
       supabase
@@ -557,8 +576,7 @@ export const payrollService = {
       const hourlyRate =
         Number(comp.hourly_rate ?? 0) ||
         (dailyRate > 0 ? dailyRate / defaultHoursPerDay : 0);
-      const overtimeHourlyRate =
-        Number(comp.overtime_hourly_rate ?? 0) || hourlyRate;
+      const overtimeHourlyRate = hourlyRate * regularOtMultiplier;
       const allowancePay = Number(comp.allowance_amount ?? 0);
 
       let basicPay = 0;
@@ -649,7 +667,7 @@ export const payrollService = {
         employmentType === "regular" ? (lateMinutes / 60) * hourlyRate : 0;
 
       const overtimePay =
-        (overtimeMinutes / 60) * overtimeHourlyRate * regularOtMultiplier;
+        (overtimeMinutes / 60) * overtimeHourlyRate;
 
       let additions = 0;
       let recurringAdditionTotal = 0;
@@ -841,7 +859,7 @@ export const payrollService = {
           item_type: "overtime_pay",
           description: "Overtime Pay",
           quantity: Number(record.total_overtime_minutes ?? 0) / 60,
-          rate: record.hourly_rate,
+          rate: round2(Number(record.hourly_rate ?? 0) * regularOtMultiplier),
           amount: record.overtime_pay,
         });
       }
