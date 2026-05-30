@@ -3,6 +3,7 @@ import { supabase } from "../lib/supabase";
 export type RecurringDeduction = {
   id: string;
   user_id: string;
+  adjustment_type: "addition" | "deduction";
   name: string;
   amount: number;
   deduction_type: "fixed" | "percentage";
@@ -24,6 +25,7 @@ export type RecurringDeduction = {
 
 export type SaveRecurringDeductionPayload = {
   user_id: string;
+  adjustment_type?: "addition" | "deduction";
   name: string;
   amount: number;
   deduction_type?: "fixed" | "percentage";
@@ -41,6 +43,7 @@ export type SaveRecurringDeductionPayload = {
 const mapRecurringDeduction = (row: any): RecurringDeduction => ({
   id: row.id,
   user_id: row.user_id,
+  adjustment_type: row.adjustment_type ?? "deduction",
   name: row.name,
   amount: Number(row.amount ?? 0),
   deduction_type: row.deduction_type ?? "fixed",
@@ -98,6 +101,7 @@ export const recurringDeductionService = {
       .from("employee_recurring_deductions")
       .insert({
         user_id: payload.user_id,
+        adjustment_type: payload.adjustment_type ?? "deduction",
         name: payload.name,
         amount: payload.amount,
         deduction_type: payload.deduction_type ?? "fixed",

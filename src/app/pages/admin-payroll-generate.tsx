@@ -245,7 +245,7 @@ export function AdminPayrollGeneratePage() {
               onClick={() => navigate("/admin/recurring-deductions")}
             >
               <Wallet className="w-4 h-4 mr-2" />
-              Recurring Deductions
+              Recurring Items
             </Button>
 
             <Button
@@ -303,7 +303,7 @@ export function AdminPayrollGeneratePage() {
             </div>
 
             <div className="mt-4 rounded-xl border bg-neutral-50 p-4 text-sm text-neutral-700">
-              After adding or changing payroll adjustments and recurring deductions,
+              After adding or changing payroll adjustments and recurring payroll items,
               regenerate payroll for the selected period so the totals update.
             </div>
           </CardContent>

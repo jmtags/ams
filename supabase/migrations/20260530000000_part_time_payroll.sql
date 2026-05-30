@@ -21,6 +21,16 @@ alter table public.payroll_records
   add constraint payroll_records_employment_type_check
   check (employment_type = any (array['regular'::text, 'part_time'::text]));
 
+alter table public.employee_recurring_deductions
+  add column if not exists adjustment_type text not null default 'deduction';
+
+alter table public.employee_recurring_deductions
+  drop constraint if exists employee_recurring_deductions_adjustment_type_check;
+
+alter table public.employee_recurring_deductions
+  add constraint employee_recurring_deductions_adjustment_type_check
+  check (adjustment_type = any (array['addition'::text, 'deduction'::text]));
+
 alter table public.employee_compensation enable row level security;
 
 drop policy if exists "Staff can view employee compensation" on public.employee_compensation;

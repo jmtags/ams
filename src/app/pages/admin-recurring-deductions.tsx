@@ -38,6 +38,7 @@ import {
 
 type FormState = {
   user_id: string;
+  adjustment_type: "addition" | "deduction";
   name: string;
   amount: string;
   deduction_type: "fixed" | "percentage";
@@ -62,6 +63,7 @@ const getTodayDate = () => {
 
 const defaultForm: FormState = {
   user_id: "",
+  adjustment_type: "deduction",
   name: "",
   amount: "0",
   deduction_type: "fixed",
@@ -129,6 +131,7 @@ export function AdminRecurringDeductionsPage() {
     setEditingRecord(record);
     setForm({
       user_id: record.user_id,
+      adjustment_type: record.adjustment_type,
       name: record.name ?? "",
       amount: String(record.amount ?? 0),
       deduction_type: record.deduction_type,
@@ -157,7 +160,7 @@ export function AdminRecurringDeductionsPage() {
     }
 
     if (!form.name.trim()) {
-      alert("Deduction name is required.");
+      alert("Name is required.");
       return;
     }
 
@@ -181,6 +184,7 @@ export function AdminRecurringDeductionsPage() {
 
       const payload = {
         user_id: form.user_id,
+        adjustment_type: form.adjustment_type,
         name: form.name.trim(),
         amount: Number(form.amount),
         deduction_type: form.deduction_type,
@@ -200,8 +204,8 @@ export function AdminRecurringDeductionsPage() {
       await loadData();
       closeDialog();
     } catch (error: any) {
-      console.error("Failed to save recurring deduction:", error);
-      alert(error.message || "Failed to save recurring deduction.");
+      console.error("Failed to save recurring payroll item:", error);
+      alert(error.message || "Failed to save recurring payroll item.");
     } finally {
       setIsSaving(false);
     }
@@ -209,7 +213,7 @@ export function AdminRecurringDeductionsPage() {
 
   const handleDelete = async (record: RecurringDeduction) => {
     const confirmed = window.confirm(
-      `Delete recurring deduction "${record.name}" for ${record.user_name || "this employee"}?`
+      `Delete recurring ${record.adjustment_type} "${record.name}" for ${record.user_name || "this employee"}?`
     );
 
     if (!confirmed) return;
@@ -218,8 +222,8 @@ export function AdminRecurringDeductionsPage() {
       await recurringDeductionService.remove(record.id);
       await loadData();
     } catch (error: any) {
-      console.error("Failed to delete recurring deduction:", error);
-      alert(error.message || "Failed to delete recurring deduction.");
+      console.error("Failed to delete recurring payroll item:", error);
+      alert(error.message || "Failed to delete recurring payroll item.");
     }
   };
 
@@ -228,6 +232,7 @@ export function AdminRecurringDeductionsPage() {
       const haystack = [
         item.user_name ?? "",
         item.user_email ?? "",
+        item.adjustment_type ?? "",
         item.name ?? "",
         item.frequency ?? "",
         item.notes ?? "",
@@ -259,10 +264,21 @@ export function AdminRecurringDeductionsPage() {
     });
   }, [records, search, userFilter, activeFilter, frequencyFilter]);
 
-  const totalActiveAmount = useMemo(() => {
+  const activeTotals = useMemo(() => {
     return filteredRecords
       .filter((item) => item.is_active)
-      .reduce((sum, item) => sum + Number(item.amount ?? 0), 0);
+      .reduce(
+        (totals, item) => {
+          if (item.adjustment_type === "addition") {
+            totals.additions += Number(item.amount ?? 0);
+          } else {
+            totals.deductions += Number(item.amount ?? 0);
+          }
+
+          return totals;
+        },
+        { additions: 0, deductions: 0 }
+      );
   }, [filteredRecords]);
 
   return (
@@ -270,9 +286,9 @@ export function AdminRecurringDeductionsPage() {
       <div className="space-y-6">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-semibold mb-1">Recurring Deductions</h1>
+            <h1 className="text-2xl font-semibold mb-1">Recurring Payroll Items</h1>
             <p className="text-neutral-600">
-              Manage ongoing employee deductions that apply to payroll runs.
+              Manage ongoing employee additions and deductions that apply to payroll runs.
             </p>
           </div>
 
@@ -284,7 +300,7 @@ export function AdminRecurringDeductionsPage() {
 
             <Button onClick={openCreateDialog}>
               <Plus className="w-4 h-4 mr-2" />
-              Add Recurring Deduction
+              Add Recurring Item
             </Button>
           </div>
         </div>
@@ -293,7 +309,7 @@ export function AdminRecurringDeductionsPage() {
           <CardHeader>
             <CardTitle>Filters</CardTitle>
             <CardDescription>
-              Search and filter recurring deductions.
+              Search and filter recurring payroll items.
             </CardDescription>
           </CardHeader>
 
@@ -345,29 +361,42 @@ export function AdminRecurringDeductionsPage() {
 
         <Card>
           <CardContent className="pt-6">
-            <p className="text-sm text-neutral-500">Total Active Amount</p>
-            <p className="text-2xl font-bold mt-2">{currency(totalActiveAmount)}</p>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div>
+                <p className="text-sm text-neutral-500">Active Additions</p>
+                <p className="text-2xl font-bold mt-2">
+                  {currency(activeTotals.additions)}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-neutral-500">Active Deductions</p>
+                <p className="text-2xl font-bold mt-2">
+                  {currency(activeTotals.deductions)}
+                </p>
+              </div>
+            </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>Recurring Deduction List</CardTitle>
+            <CardTitle>Recurring Payroll Item List</CardTitle>
             <CardDescription>
-              {filteredRecords.length} recurring deduction(s) found
+              {filteredRecords.length} recurring payroll item(s) found
             </CardDescription>
           </CardHeader>
 
           <CardContent>
             {isLoading ? (
               <div className="py-10 text-center text-neutral-500">
-                Loading recurring deductions...
+                Loading recurring payroll items...
               </div>
             ) : (
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Employee</TableHead>
+                    <TableHead>Kind</TableHead>
                     <TableHead>Name</TableHead>
                     <TableHead>Amount</TableHead>
                     <TableHead>Type</TableHead>
@@ -382,8 +411,8 @@ export function AdminRecurringDeductionsPage() {
                 <TableBody>
                   {filteredRecords.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={9} className="text-center py-8">
-                        No recurring deductions found.
+                      <TableCell colSpan={10} className="text-center py-8">
+                        No recurring payroll items found.
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -394,6 +423,19 @@ export function AdminRecurringDeductionsPage() {
                           <div className="text-xs text-neutral-500">
                             {item.user_email || "-"}
                           </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            variant={
+                              item.adjustment_type === "addition"
+                                ? "default"
+                                : "outline"
+                            }
+                          >
+                            {item.adjustment_type === "addition"
+                              ? "Addition"
+                              : "Deduction"}
+                          </Badge>
                         </TableCell>
                         <TableCell>{item.name}</TableCell>
                         <TableCell>{currency(item.amount)}</TableCell>
@@ -440,10 +482,10 @@ export function AdminRecurringDeductionsPage() {
           <DialogContent className="max-w-2xl">
             <DialogHeader>
               <DialogTitle>
-                {editingRecord ? "Edit Recurring Deduction" : "Add Recurring Deduction"}
+                {editingRecord ? "Edit Recurring Item" : "Add Recurring Item"}
               </DialogTitle>
               <DialogDescription>
-                Create or update an ongoing payroll deduction for an employee.
+                Create or update an ongoing payroll addition or deduction for an employee.
               </DialogDescription>
             </DialogHeader>
 
@@ -472,6 +514,25 @@ export function AdminRecurringDeductionsPage() {
                   </div>
 
                   <div className="grid md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Kind</label>
+                      <select
+                        className="w-full border rounded px-3 py-2 bg-white"
+                        value={form.adjustment_type}
+                        onChange={(e) =>
+                          setForm((prev) => ({
+                            ...prev,
+                            adjustment_type: e.target.value as
+                              | "addition"
+                              | "deduction",
+                          }))
+                        }
+                      >
+                        <option value="addition">Addition</option>
+                        <option value="deduction">Deduction</option>
+                      </select>
+                    </div>
+
                     <div>
                       <label className="block text-sm font-medium mb-1">Name</label>
                       <Input
@@ -622,8 +683,8 @@ export function AdminRecurringDeductionsPage() {
                   {isSaving
                     ? "Saving..."
                     : editingRecord
-                    ? "Update Deduction"
-                    : "Create Deduction"}
+                    ? "Update Item"
+                    : "Create Item"}
                 </Button>
               </DialogFooter>
             </form>

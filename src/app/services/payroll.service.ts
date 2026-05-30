@@ -635,6 +635,7 @@ export const payrollService = {
         (overtimeMinutes / 60) * overtimeHourlyRate * regularOtMultiplier;
 
       let additions = 0;
+      let recurringAdditionTotal = 0;
       let recurringDeductionTotal = 0;
       let manualDeductionTotal = 0;
 
@@ -652,6 +653,18 @@ export const payrollService = {
       userRecurring.forEach((ded: any) => {
         const amount = Number(ded.amount ?? 0);
         if (amount <= 0) return;
+
+        if ((ded.adjustment_type ?? "deduction") === "addition") {
+          if ((ded.deduction_type ?? "fixed") === "percentage") {
+            recurringAdditionTotal +=
+              (basicPay + leavePay + overtimePay + holidayPay + restDayPay) *
+              (amount / 100);
+          } else {
+            recurringAdditionTotal += amount;
+          }
+
+          return;
+        }
 
         if ((ded.deduction_type ?? "fixed") === "percentage") {
           recurringDeductionTotal +=
@@ -679,6 +692,7 @@ export const payrollService = {
           holidayPay +
           restDayPay +
           allowancePay +
+          recurringAdditionTotal +
           additions
       );
 
@@ -892,6 +906,33 @@ export const payrollService = {
       originalRecurringDeductions.forEach((ded: any) => {
         const rawAmount = Number(ded.amount ?? 0);
         if (rawAmount <= 0) return;
+
+        if ((ded.adjustment_type ?? "deduction") === "addition") {
+          const computedAmount =
+            (ded.deduction_type ?? "fixed") === "percentage"
+              ? round2(
+                  (Number(record.basic_pay ?? 0) +
+                    Number(record.leave_pay ?? 0) +
+                    Number(record.overtime_pay ?? 0) +
+                    Number(record.holiday_pay ?? 0) +
+                    Number(record.restday_pay ?? 0)) *
+                    (rawAmount / 100)
+                )
+              : rawAmount;
+
+          if (computedAmount <= 0) return;
+
+          itemsToInsert.push({
+            payroll_record_id: record.id,
+            item_type: "adjustment_add",
+            description: ded.name || "Recurring Addition",
+            quantity: 1,
+            rate: computedAmount,
+            amount: computedAmount,
+          });
+
+          return;
+        }
 
         const computedAmount =
           (ded.deduction_type ?? "fixed") === "percentage"

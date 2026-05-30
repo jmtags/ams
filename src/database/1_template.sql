@@ -289,6 +289,11 @@ create table if not exists public.employee_recurring_deductions (
   user_id uuid not null,
   name text not null,
   amount numeric not null default 0,
+  adjustment_type text not null default 'deduction'::text
+    check (adjustment_type = any (array[
+      'addition'::text,
+      'deduction'::text
+    ])),
   deduction_type text not null default 'fixed'::text
     check (deduction_type = any (array[
       'fixed'::text,

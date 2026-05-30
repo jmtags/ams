@@ -162,7 +162,7 @@ const navGroups: NavGroup[] = [
         icon: <FileText className="h-4 w-4" />,
       },
       {
-        label: "Recurring Deductions",
+        label: "Recurring Payroll Items",
         to: "/admin/recurring-deductions",
         icon: <Wallet className="h-4 w-4" />,
       },

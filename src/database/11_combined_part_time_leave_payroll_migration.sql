@@ -23,6 +23,27 @@ alter table public.leave_types
   alter column counts_for_payroll set not null;
 
 -- =========================================================
+-- Recurring payroll additions/deductions
+-- =========================================================
+
+alter table public.employee_recurring_deductions
+  add column if not exists adjustment_type text default 'deduction';
+
+update public.employee_recurring_deductions
+set adjustment_type = coalesce(adjustment_type, 'deduction');
+
+alter table public.employee_recurring_deductions
+  alter column adjustment_type set default 'deduction',
+  alter column adjustment_type set not null;
+
+alter table public.employee_recurring_deductions
+  drop constraint if exists employee_recurring_deductions_adjustment_type_check;
+
+alter table public.employee_recurring_deductions
+  add constraint employee_recurring_deductions_adjustment_type_check
+  check (adjustment_type = any (array['addition'::text, 'deduction'::text]));
+
+-- =========================================================
 -- Employee compensation fields for part-time mode
 -- =========================================================
 
