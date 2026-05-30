@@ -40,6 +40,15 @@ const currency = (value: number) =>
 
 const hours = (minutes: number) => (Number(minutes || 0) / 60).toFixed(2);
 
+const getBreakMinutes = (record: PayrollRecord) =>
+  record.employment_type === "part_time"
+    ? Number(record.total_work_days ?? 0) *
+      Number(record.unpaid_break_minutes ?? 0)
+    : 0;
+
+const getTotalWorkMinutes = (record: PayrollRecord) =>
+  Number(record.total_work_minutes ?? 0) + getBreakMinutes(record);
+
 const getStatusBadgeVariant = (status: string) => {
   switch (status) {
     case "draft":
@@ -315,9 +324,23 @@ export function UserPayslipDetailsPage() {
                   </div>
 
                   <div className="rounded-xl border p-4">
+                    <p className="text-sm text-neutral-500">Total Work Hours</p>
+                    <p className="text-xl font-semibold mt-2">
+                      {hours(getTotalWorkMinutes(record))}
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl border p-4">
                     <p className="text-sm text-neutral-500">Paid Work Hours</p>
                     <p className="text-xl font-semibold mt-2">
                       {hours(record.total_work_minutes)}
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl border p-4">
+                    <p className="text-sm text-neutral-500">Break Hours</p>
+                    <p className="text-xl font-semibold mt-2">
+                      {hours(getBreakMinutes(record))}
                     </p>
                   </div>
 
