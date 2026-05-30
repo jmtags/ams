@@ -233,6 +233,12 @@ const getPartTimeBreakMinutes = (elapsedMinutes: number) => {
 const getPartTimeAttendanceBreakMinutes = (row: any) =>
   getPartTimeBreakMinutes(diffMinutes(row.clock_in, row.clock_out));
 
+const getRegularAttendanceBreakMinutes = (row: any, breakMinutes: number) => {
+  if (breakMinutes <= 0) return 0;
+  const elapsedMinutes = diffMinutes(row.clock_in, row.clock_out);
+  return elapsedMinutes >= 4 * 60 ? breakMinutes : 0;
+};
+
 const getPartTimeRegularWorkMinutes = (row: any) => {
   const elapsedMinutes = diffMinutes(row.clock_in, row.clock_out);
   if (elapsedMinutes <= 0) return 0;
@@ -610,20 +616,38 @@ export const payrollService = {
         absentDeduction = 0;
       } else if (payType === "daily") {
         workMinutes = workedDays * defaultHoursPerDay * 60;
-        breakMinutes = workedDays * unpaidBreakMinutes;
+        breakMinutes = userAttendance.reduce(
+          (sum, row) =>
+            workedStatuses.includes(row.status)
+              ? sum + getRegularAttendanceBreakMinutes(row, unpaidBreakMinutes)
+              : sum,
+          0
+        );
         basicPay = workedDays * dailyRate;
         leavePay = paidLeaveDays * dailyRate;
         absentDeduction = 0;
       } else if (payType === "hourly") {
         workMinutes = workedDays * defaultHoursPerDay * 60;
-        breakMinutes = workedDays * unpaidBreakMinutes;
+        breakMinutes = userAttendance.reduce(
+          (sum, row) =>
+            workedStatuses.includes(row.status)
+              ? sum + getRegularAttendanceBreakMinutes(row, unpaidBreakMinutes)
+              : sum,
+          0
+        );
         basicPay = workedDays * defaultHoursPerDay * hourlyRate;
         leavePay = paidLeaveDays * defaultHoursPerDay * hourlyRate;
         absentDeduction = 0;
       } else {
         const semiMonthlyBase = basicMonthlyRate / 2;
         workMinutes = workedDays * defaultHoursPerDay * 60;
-        breakMinutes = workedDays * unpaidBreakMinutes;
+        breakMinutes = userAttendance.reduce(
+          (sum, row) =>
+            workedStatuses.includes(row.status)
+              ? sum + getRegularAttendanceBreakMinutes(row, unpaidBreakMinutes)
+              : sum,
+          0
+        );
         basicPay = semiMonthlyBase;
         leavePay = 0;
         absentDeduction = (unpaidLeaveDays + absentDays) * dailyRate;
