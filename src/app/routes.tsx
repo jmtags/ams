@@ -15,6 +15,7 @@ import ShiftManagementPage from "./pages/ShiftManagementPage";
 import { ManualAttendanceManagementPage } from "./pages/manual-attendance-management";
 import { AttendanceAdjustmentsManagementPage } from "./pages/attendance-adjustments-management";
 import { AttendanceActivityLogManagementPage } from "./pages/attendance-activity-log-management";
+import { OvertimeApprovalsPage } from "./pages/overtime-approvals-page";
 
 import ManageHolidaysPage from "./pages/manage-holidays";
 import ManageLeaveTypesPage from "./pages/manage-leave-types-page";
@@ -149,6 +150,14 @@ export const router = createBrowserRouter([
     element: (
       <ProtectedRoute allowedRoles={["admin", "hr", "payroll"]}>
         <AttendanceAdjustmentsManagementPage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/admin/overtime-approvals",
+    element: (
+      <ProtectedRoute allowedRoles={["admin", "hr", "payroll"]}>
+        <OvertimeApprovalsPage />
       </ProtectedRoute>
     ),
   },

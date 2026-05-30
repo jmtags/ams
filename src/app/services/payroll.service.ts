@@ -184,8 +184,10 @@ const diffMinutes = (
 };
 
 const getAttendanceOvertimeMinutes = (row: any) => {
+  const overtimeStatus = row.overtime_status ?? "pending";
   const approvedMinutes = Number(row.approved_overtime_minutes ?? 0);
-  if (approvedMinutes > 0) return approvedMinutes;
+  if (overtimeStatus === "approved") return approvedMinutes;
+  if (overtimeStatus === "pending" || overtimeStatus === "rejected") return 0;
 
   const recordedMinutes = Number(row.minutes_overtime ?? 0);
   if (recordedMinutes > 0) return recordedMinutes;

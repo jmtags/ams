@@ -105,6 +105,11 @@ const navGroups: NavGroup[] = [
         badgeKey: "attendanceAdjustments",
       },
       {
+        label: "Overtime Approvals",
+        to: "/admin/overtime-approvals",
+        icon: <Clock3 className="h-4 w-4" />,
+      },
+      {
         label: "Activity Logs",
         to: "/admin/activity-logs",
         icon: <ClipboardList className="h-4 w-4" />,
