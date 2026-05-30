@@ -270,7 +270,7 @@ export function UserPayslipDetailsPage() {
                       ? "Part-time"
                       : "Regular"}
                     {record.employment_type === "part_time"
-                      ? `, ${Number(record.unpaid_break_minutes ?? 0)} min break`
+                      ? ", automatic break"
                       : ""}
                   </p>
                 </CardContent>

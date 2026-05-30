@@ -186,17 +186,20 @@ const diffMinutes = (
 const getAttendanceOvertimeMinutes = (row: any) =>
   Number(row.approved_overtime_minutes ?? row.minutes_overtime ?? 0);
 
-const getPartTimeRegularWorkMinutes = (
-  row: any,
-  unpaidBreakMinutes: number
-) => {
+const getPartTimeBreakMinutes = (elapsedMinutes: number) => {
+  if (elapsedMinutes >= 8 * 60) return 60;
+  if (elapsedMinutes >= 4 * 60) return 30;
+  return 0;
+};
+
+const getPartTimeRegularWorkMinutes = (row: any) => {
   const elapsedMinutes = diffMinutes(row.clock_in, row.clock_out);
   if (elapsedMinutes <= 0) return 0;
 
   return Math.max(
     0,
     elapsedMinutes -
-      Math.max(0, unpaidBreakMinutes || 0) -
+      getPartTimeBreakMinutes(elapsedMinutes) -
       Math.max(0, getAttendanceOvertimeMinutes(row))
   );
 };
@@ -493,7 +496,7 @@ export const payrollService = {
         (row) => row.status === "absent"
       ).length;
 
-      const lateMinutes = userAttendance.reduce(
+      const rawLateMinutes = userAttendance.reduce(
         (sum, row) => sum + Number(row.minutes_late ?? 0),
         0
       );
@@ -526,6 +529,7 @@ export const payrollService = {
         0,
         Number(comp.unpaid_break_minutes ?? 60)
       );
+      const lateMinutes = employmentType === "regular" ? rawLateMinutes : 0;
       const basicMonthlyRate = Number(comp.basic_monthly_rate ?? 0);
       const dailyRate =
         Number(comp.daily_rate ?? 0) ||
@@ -546,7 +550,7 @@ export const payrollService = {
         workMinutes = userAttendance.reduce(
           (sum, row) =>
             workedStatuses.includes(row.status)
-              ? sum + getPartTimeRegularWorkMinutes(row, unpaidBreakMinutes)
+              ? sum + getPartTimeRegularWorkMinutes(row)
               : sum,
           0
         );
@@ -590,7 +594,7 @@ export const payrollService = {
           if (!worked) return;
 
           const actualHours =
-            getPartTimeRegularWorkMinutes(row, unpaidBreakMinutes) / 60;
+            getPartTimeRegularWorkMinutes(row) / 60;
           const actualBasePay = actualHours * hourlyRate;
 
           if (paidHoliday && holidayRestDayStatuses.includes(status)) {
