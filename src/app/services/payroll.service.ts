@@ -99,18 +99,54 @@ const hasWorked = (row: any) => Boolean(row.clock_in || row.clock_out);
 const getWorkedDayPayBase = (payType: string, dailyRate: number, hourlyRate: number, hoursPerDay: number) =>
   payType === "hourly" ? hourlyRate * hoursPerDay : dailyRate;
 
-const isPaidHolidayAttendance = (row: any, holidays: any[]) => {
-  if (!row.is_holiday && !holidayStatuses.includes(row.status) && !holidayRestDayStatuses.includes(row.status)) {
-    return false;
-  }
+const getApplicableHoliday = (
+  holidays: any[],
+  date: string | null | undefined,
+  locationId: string | null | undefined
+) => {
+  if (!date) return null;
 
-  const holiday = holidays.find((item) => {
-    if (item.holiday_date !== row.date) return false;
+  const matches = holidays.filter((item) => {
+    if (item.holiday_date !== date) return false;
     if (!item.location_id) return true;
-    return !row.location_id || item.location_id === row.location_id;
+    if (!locationId) return false;
+    return item.location_id === locationId;
   });
 
-  return holiday ? holiday.is_paid !== false : true;
+  return (
+    matches.find((item) => item.location_id && item.location_id === locationId) ??
+    matches.find((item) => !item.location_id) ??
+    null
+  );
+};
+
+const getUserShiftLocationId = (user: any) => user.shifts?.location_id ?? null;
+
+const getAttendanceLocationId = (row: any, userLocationId: string | null) =>
+  row.location_id ?? row.shifts?.location_id ?? userLocationId;
+
+const getHolidayContext = (
+  row: any,
+  holidays: any[],
+  userLocationId: string | null
+) => {
+  const status = String(row.status || "").toLowerCase();
+  const locationId = getAttendanceLocationId(row, userLocationId);
+  const holiday = getApplicableHoliday(holidays, row.date, locationId);
+  const isHoliday =
+    Boolean(holiday) ||
+    row.is_holiday === true ||
+    holidayStatuses.includes(status) ||
+    holidayRestDayStatuses.includes(status);
+
+  return {
+    isHoliday,
+    isRestDay:
+      row.is_restday === true ||
+      restDayStatuses.includes(status) ||
+      holidayRestDayStatuses.includes(status),
+    isPaid: holiday ? holiday.is_paid !== false : isHoliday,
+  };
 };
 
 const mapPayrollRecord = (row: any): PayrollRecord => ({
@@ -426,7 +462,7 @@ export const payrollService = {
       adjustmentsRes,
       recurringRes,
     ] = await Promise.all([
-      supabase.from("users").select("*").order("name"),
+      supabase.from("users").select("*, shifts ( location_id )").order("name"),
       supabase.from("employee_compensation").select("*").eq("is_active", true),
       supabase
         .from("attendance")
@@ -559,6 +595,7 @@ export const payrollService = {
       const userLeaves = leaveByUser.get(user.id) ?? [];
       const userAdjustments = adjustmentsByUser.get(user.id) ?? [];
       const userRecurring = recurringByUser.get(user.id) ?? [];
+      const userLocationId = getUserShiftLocationId(user);
 
       const workedDays = userAttendance.filter((row) =>
         workedStatuses.includes(row.status)
@@ -583,6 +620,7 @@ export const payrollService = {
 
       let paidLeaveDays = 0;
       let unpaidLeaveDays = 0;
+      const payrollLeaveDates = new Set<string>();
 
       userLeaves.forEach((row: any) => {
         const leaveType = row.leave_requests?.leave_types;
@@ -590,12 +628,42 @@ export const payrollService = {
         const isPaid = leaveType?.is_paid === true;
         const dayValue = Number(row.day_value ?? 1);
 
+        if (countsForPayroll) {
+          payrollLeaveDates.add(row.leave_date);
+        }
+
         if (countsForPayroll && isPaid) {
           paidLeaveDays += dayValue;
         } else if (countsForPayroll) {
           unpaidLeaveDays += dayValue;
         }
       });
+
+      const attendanceHolidayDates = new Set(
+        userAttendance
+          .filter((row) => getHolidayContext(row, holidays, userLocationId).isHoliday)
+          .map((row) => row.date)
+          .filter(Boolean)
+      );
+
+      const paidHolidayDates = new Set(
+        holidays
+          .filter((holiday) => holiday.is_paid !== false)
+          .filter((holiday) =>
+            Boolean(
+              getApplicableHoliday(
+                holidays,
+                holiday.holiday_date,
+                userLocationId
+              )?.id === holiday.id
+            )
+          )
+          .map((holiday) => holiday.holiday_date)
+      );
+
+      const paidHolidayDaysWithoutAttendance = Array.from(paidHolidayDates).filter(
+        (date) => !attendanceHolidayDates.has(date) && !payrollLeaveDates.has(date)
+      ).length;
 
       const payType = comp.pay_type as "monthly" | "daily" | "hourly";
       const employmentType =
@@ -724,7 +792,17 @@ export const payrollService = {
       userAttendance.forEach((row) => {
         const status = String(row.status || "").toLowerCase();
         const worked = hasWorked(row);
-        const paidHoliday = isPaidHolidayAttendance(row, holidays);
+        const holidayContext = getHolidayContext(row, holidays, userLocationId);
+        const paidHoliday = holidayContext.isHoliday && holidayContext.isPaid;
+        const isHolidayRestDay =
+          holidayRestDayStatuses.includes(status) ||
+          (holidayContext.isHoliday && holidayContext.isRestDay);
+        const isHolidayOnly =
+          holidayStatuses.includes(status) ||
+          (holidayContext.isHoliday && !holidayContext.isRestDay);
+        const isRestDayOnly =
+          restDayStatuses.includes(status) ||
+          (!holidayContext.isHoliday && holidayContext.isRestDay);
 
         if (employmentType === "part_time") {
           if (!worked) return;
@@ -733,33 +811,37 @@ export const payrollService = {
             getPartTimeRegularWorkMinutes(row) / 60;
           const actualBasePay = actualHours * hourlyRate;
 
-          if (paidHoliday && holidayRestDayStatuses.includes(status)) {
+          if (paidHoliday && isHolidayRestDay) {
             holidayPay += actualBasePay * (holidayRestDayMultiplier - 1);
-          } else if (paidHoliday && holidayStatuses.includes(status)) {
+          } else if (paidHoliday && isHolidayOnly) {
             holidayPay += actualBasePay * (holidayMultiplier - 1);
-          } else if (restDayStatuses.includes(status)) {
+          } else if (isRestDayOnly) {
             restDayPay += actualBasePay * (restDayMultiplier - 1);
           }
 
           return;
         }
 
-        if (paidHoliday && holidayRestDayStatuses.includes(status)) {
+        if (paidHoliday && isHolidayRestDay) {
           holidayPay += worked
             ? dayPayBase * (holidayRestDayMultiplier - 1)
             : payType === "monthly"
               ? 0
               : dayPayBase;
-        } else if (paidHoliday && holidayStatuses.includes(status)) {
+        } else if (paidHoliday && isHolidayOnly) {
           holidayPay += worked
             ? dayPayBase * (holidayMultiplier - 1)
             : payType === "monthly"
               ? 0
               : dayPayBase;
-        } else if (restDayStatuses.includes(status) && worked) {
+        } else if (isRestDayOnly && worked) {
           restDayPay += dayPayBase * (restDayMultiplier - 1);
         }
       });
+
+      if (employmentType === "regular" && payType !== "monthly") {
+        holidayPay += paidHolidayDaysWithoutAttendance * dayPayBase;
+      }
 
       const lateDeduction =
         employmentType === "regular" ? (lateMinutes / 60) * hourlyRate : 0;
