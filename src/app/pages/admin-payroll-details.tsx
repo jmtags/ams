@@ -382,6 +382,13 @@ export function AdminPayrollDetailsPage() {
                   </div>
 
                   <div className="rounded-xl border p-4">
+                    <p className="text-sm text-neutral-500">Holiday Pay</p>
+                    <p className="text-xl font-semibold mt-2">
+                      {currency(record.holiday_pay)}
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl border p-4">
                     <p className="text-sm text-neutral-500">Gross Pay</p>
                     <p className="text-xl font-semibold mt-2">
                       {currency(record.gross_pay)}

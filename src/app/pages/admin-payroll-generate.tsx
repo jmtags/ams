@@ -200,6 +200,7 @@ export function AdminPayrollGeneratePage() {
       (acc, row) => {
         acc.employeeCount += 1;
         acc.grossPay += Number(row.gross_pay ?? 0);
+        acc.holidayPay += Number(row.holiday_pay ?? 0);
         acc.totalDeductions += Number(row.total_deductions ?? 0);
         acc.netPay += Number(row.net_pay ?? 0);
         acc.totalWorkDays += Number(row.total_work_days ?? 0);
@@ -208,6 +209,7 @@ export function AdminPayrollGeneratePage() {
       {
         employeeCount: 0,
         grossPay: 0,
+        holidayPay: 0,
         totalDeductions: 0,
         netPay: 0,
         totalWorkDays: 0,
@@ -310,7 +312,7 @@ export function AdminPayrollGeneratePage() {
         </Card>
 
         {selectedPeriod && (
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
             <Card>
               <CardContent className="pt-6">
                 <p className="text-sm text-neutral-500">Period Status</p>
@@ -341,6 +343,15 @@ export function AdminPayrollGeneratePage() {
                 <p className="text-sm text-neutral-500">Gross Pay</p>
                 <p className="text-2xl font-bold mt-2">
                   {currency(summary.grossPay)}
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="pt-6">
+                <p className="text-sm text-neutral-500">Holiday Pay</p>
+                <p className="text-2xl font-bold mt-2">
+                  {currency(summary.holidayPay)}
                 </p>
               </CardContent>
             </Card>
@@ -385,6 +396,7 @@ export function AdminPayrollGeneratePage() {
                     <TableHead>Leave Days</TableHead>
                     <TableHead>Absent Days</TableHead>
                     <TableHead>Late Minutes</TableHead>
+                    <TableHead>Holiday Pay</TableHead>
                     <TableHead>Gross Pay</TableHead>
                     <TableHead>Deductions</TableHead>
                     <TableHead>Net Pay</TableHead>
@@ -396,7 +408,7 @@ export function AdminPayrollGeneratePage() {
                 <TableBody>
                   {filteredRecords.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={11} className="text-center py-8">
+                      <TableCell colSpan={12} className="text-center py-8">
                         No payroll records found for this period.
                       </TableCell>
                     </TableRow>
@@ -417,6 +429,7 @@ export function AdminPayrollGeneratePage() {
                             Number(record.total_unpaid_leave_days ?? 0)}
                         </TableCell>
                         <TableCell>{Number(record.total_late_minutes ?? 0)}</TableCell>
+                        <TableCell>{currency(record.holiday_pay)}</TableCell>
                         <TableCell>{currency(record.gross_pay)}</TableCell>
                         <TableCell>{currency(record.total_deductions)}</TableCell>
                         <TableCell className="font-semibold">
