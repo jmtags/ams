@@ -586,6 +586,7 @@ export const payrollService = {
     });
 
     const recordsToInsert: any[] = [];
+    const holidayPayQuantityByUser = new Map<string, number>();
 
     for (const user of users) {
       const comp = compensationByUser.get(user.id);
@@ -782,12 +783,28 @@ export const payrollService = {
 
       let holidayPay = 0;
       let restDayPay = 0;
+      let holidayPayQuantity = 0;
+      const countedHolidayPayDates = new Set<string>();
       const dayPayBase = getWorkedDayPayBase(
         payType,
         dailyRate,
         hourlyRate,
         defaultHoursPerDay
       );
+
+      const addHolidayPay = (
+        date: string | null | undefined,
+        amount: number
+      ) => {
+        if (amount <= 0) return;
+
+        holidayPay += amount;
+
+        if (date && !countedHolidayPayDates.has(date)) {
+          countedHolidayPayDates.add(date);
+          holidayPayQuantity += 1;
+        }
+      };
 
       userAttendance.forEach((row) => {
         const status = String(row.status || "").toLowerCase();
@@ -812,9 +829,9 @@ export const payrollService = {
           const actualBasePay = actualHours * hourlyRate;
 
           if (paidHoliday && isHolidayRestDay) {
-            holidayPay += actualBasePay * (holidayRestDayMultiplier - 1);
+            addHolidayPay(row.date, actualBasePay * (holidayRestDayMultiplier - 1));
           } else if (paidHoliday && isHolidayOnly) {
-            holidayPay += actualBasePay * (holidayMultiplier - 1);
+            addHolidayPay(row.date, actualBasePay * (holidayMultiplier - 1));
           } else if (isRestDayOnly) {
             restDayPay += actualBasePay * (restDayMultiplier - 1);
           }
@@ -823,17 +840,17 @@ export const payrollService = {
         }
 
         if (paidHoliday && isHolidayRestDay) {
-          holidayPay += worked
+          addHolidayPay(row.date, worked
             ? dayPayBase * (holidayRestDayMultiplier - 1)
             : payType === "monthly"
               ? 0
-              : dayPayBase;
+              : dayPayBase);
         } else if (paidHoliday && isHolidayOnly) {
-          holidayPay += worked
+          addHolidayPay(row.date, worked
             ? dayPayBase * (holidayMultiplier - 1)
             : payType === "monthly"
               ? 0
-              : dayPayBase;
+              : dayPayBase);
         } else if (isRestDayOnly && worked) {
           restDayPay += dayPayBase * (restDayMultiplier - 1);
         }
@@ -841,6 +858,11 @@ export const payrollService = {
 
       if (employmentType === "regular" && payType !== "monthly") {
         holidayPay += paidHolidayDaysWithoutAttendance * dayPayBase;
+        holidayPayQuantity += paidHolidayDaysWithoutAttendance;
+      }
+
+      if (holidayPayQuantity > 0) {
+        holidayPayQuantityByUser.set(user.id, holidayPayQuantity);
       }
 
       const lateDeduction =
@@ -1045,12 +1067,17 @@ export const payrollService = {
       }
 
       if (Number(record.holiday_pay ?? 0) > 0) {
+        const holidayPayQuantity = Math.max(
+          1,
+          Number(holidayPayQuantityByUser.get(record.user_id) ?? 1)
+        );
+
         itemsToInsert.push({
           payroll_record_id: record.id,
           item_type: "holiday_pay",
           description: "Holiday Pay",
-          quantity: 1,
-          rate: record.holiday_pay,
+          quantity: holidayPayQuantity,
+          rate: round2(Number(record.holiday_pay ?? 0) / holidayPayQuantity),
           amount: record.holiday_pay,
         });
       }
