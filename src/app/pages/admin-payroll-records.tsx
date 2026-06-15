@@ -135,11 +135,12 @@ export function AdminPayrollRecordsPage() {
     return filteredRecords.reduce(
       (acc, row) => {
         acc.gross += Number(row.gross_pay ?? 0);
+        acc.holiday += Number(row.holiday_pay ?? 0);
         acc.deductions += Number(row.total_deductions ?? 0);
         acc.net += Number(row.net_pay ?? 0);
         return acc;
       },
-      { gross: 0, deductions: 0, net: 0 }
+      { gross: 0, holiday: 0, deductions: 0, net: 0 }
     );
   }, [filteredRecords]);
 
@@ -216,11 +217,20 @@ export function AdminPayrollRecordsPage() {
           </CardContent>
         </Card>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card>
             <CardContent className="pt-6">
               <p className="text-sm text-neutral-500">Gross Total</p>
               <p className="text-2xl font-bold mt-2">{currency(totals.gross)}</p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="pt-6">
+              <p className="text-sm text-neutral-500">Holiday Pay</p>
+              <p className="text-2xl font-bold mt-2">
+                {currency(totals.holiday)}
+              </p>
             </CardContent>
           </Card>
 
@@ -263,6 +273,7 @@ export function AdminPayrollRecordsPage() {
                     <TableHead>Worked Days</TableHead>
                     <TableHead>Late</TableHead>
                     <TableHead>OT Minutes</TableHead>
+                    <TableHead>Holiday Pay</TableHead>
                     <TableHead>Gross Pay</TableHead>
                     <TableHead>Deductions</TableHead>
                     <TableHead>Net Pay</TableHead>
@@ -274,7 +285,7 @@ export function AdminPayrollRecordsPage() {
                 <TableBody>
                   {filteredRecords.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={10} className="text-center py-8">
+                      <TableCell colSpan={11} className="text-center py-8">
                         No payroll records found.
                       </TableCell>
                     </TableRow>
@@ -291,6 +302,7 @@ export function AdminPayrollRecordsPage() {
                         <TableCell>{Number(record.total_work_days ?? 0)}</TableCell>
                         <TableCell>{Number(record.total_late_minutes ?? 0)}</TableCell>
                         <TableCell>{Number(record.total_overtime_minutes ?? 0)}</TableCell>
+                        <TableCell>{currency(record.holiday_pay)}</TableCell>
                         <TableCell>{currency(record.gross_pay)}</TableCell>
                         <TableCell>{currency(record.total_deductions)}</TableCell>
                         <TableCell className="font-semibold">
