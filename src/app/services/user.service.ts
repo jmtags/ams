@@ -1,6 +1,6 @@
 import { supabase } from "../lib/supabase";
 
-export type UserRole = "admin" | "user";
+export type UserRole = "admin" | "user" | "hr" | "payroll";
 
 export type User = {
   id: string;
@@ -184,12 +184,25 @@ updateUserByAdmin: async (payload: AdminUpdateUserPayload): Promise<User> => {
 
   // ===============================
   // DELETE USER
-  // Only deletes from public.users
+  // Deletes through an admin Edge Function so RLS and auth cleanup are handled.
   // ===============================
   deleteUser: async (id: string): Promise<void> => {
-    const { error } = await supabase.from("users").delete().eq("id", id);
+    const accessToken = await getAccessTokenOrThrow();
 
-    if (error) throw error;
+    const { data, error } = await supabase.functions.invoke("delete-user", {
+      body: { id },
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    if (error) {
+      throw new Error(error.message || "Failed to delete user");
+    }
+
+    if (!data?.success) {
+      throw new Error(data?.error || "Failed to delete user");
+    }
   },
 
   // ===============================

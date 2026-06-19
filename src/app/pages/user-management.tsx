@@ -721,7 +721,7 @@ export function UserManagementPage() {
       >
         <DialogContent
           onClose={handleCloseRestDialog}
-          className="max-h-[90vh] flex flex-col overflow-hidden"
+          className="max-w-4xl max-h-[90vh] flex flex-col overflow-hidden"
         >
           <DialogHeader className="shrink-0">
             <DialogTitle>
@@ -951,9 +951,11 @@ export function UserManagementPage() {
           </DialogHeader>
 
           {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
-              {error}
-            </div>
+            <DialogBody>
+              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+                {error}
+              </div>
+            </DialogBody>
           )}
 
           <DialogFooter>

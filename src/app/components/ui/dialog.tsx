@@ -18,7 +18,9 @@ export function Dialog({ open, onOpenChange, children }: DialogProps) {
         className="fixed inset-0 bg-black bg-opacity-50"
         onClick={() => onOpenChange(false)}
       />
-      <div className="relative z-50 w-full max-w-lg mx-4">{children}</div>
+      <div className="relative z-50 w-full max-w-[calc(100vw-2rem)] mx-4">
+        {children}
+      </div>
     </div>
   );
 }
@@ -31,7 +33,7 @@ interface DialogContentProps {
 
 export function DialogContent({ children, className, onClose }: DialogContentProps) {
   return (
-    <div className={cn('bg-white rounded-lg shadow-lg', className)}>
+    <div className={cn('bg-white rounded-lg shadow-lg w-full max-w-lg mx-auto', className)}>
       {onClose && (
         <button
           onClick={onClose}
