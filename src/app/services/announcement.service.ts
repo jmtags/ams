@@ -45,12 +45,22 @@ export const announcementService = {
     const config = await appSettingsService.getInstanceConfig();
 
     if (config.mode === "sub" && config.mainAnnouncementApiUrl.trim()) {
+      const headers: Record<string, string> = { Accept: "application/json" };
+      const anonKey = config.mainAnnouncementAnonKey.trim();
+
+      if (anonKey) {
+        headers.apikey = anonKey;
+        headers.Authorization = `Bearer ${anonKey}`;
+      }
+
       const response = await fetch(config.mainAnnouncementApiUrl.trim(), {
-        headers: { Accept: "application/json" },
+        headers,
       });
 
       if (!response.ok) {
-        throw new Error("Failed to load announcements from main instance.");
+        throw new Error(
+          "Failed to load announcements from main instance. Check the main API URL, anon key, or JWT verification setting."
+        );
       }
 
       return normalizeRemoteAnnouncements(await response.json());

@@ -40,10 +40,19 @@ values (
   jsonb_build_object(
     'mode', 'sub',
     'mainAnnouncementApiUrl', '',
+    'mainAnnouncementAnonKey', '',
     'showAnnouncementPopup', true
   )
 )
 on conflict (key) do nothing;
+
+update public.app_settings
+set value = coalesce(value, '{}'::jsonb) ||
+  jsonb_build_object(
+    'mainAnnouncementAnonKey',
+    coalesce(value->>'mainAnnouncementAnonKey', '')
+  )
+where key = 'instance_config';
 
 create table if not exists public.announcements (
   id uuid primary key default gen_random_uuid(),

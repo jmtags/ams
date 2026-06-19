@@ -5,18 +5,21 @@ export type InstanceMode = "main" | "sub";
 export type InstanceConfig = {
   mode: InstanceMode;
   mainAnnouncementApiUrl: string;
+  mainAnnouncementAnonKey: string;
   showAnnouncementPopup: boolean;
 };
 
 const defaultInstanceConfig: InstanceConfig = {
   mode: "sub",
   mainAnnouncementApiUrl: "",
+  mainAnnouncementAnonKey: "",
   showAnnouncementPopup: true,
 };
 
 const normalizeConfig = (value: any): InstanceConfig => ({
   mode: value?.mode === "main" ? "main" : "sub",
   mainAnnouncementApiUrl: String(value?.mainAnnouncementApiUrl ?? ""),
+  mainAnnouncementAnonKey: String(value?.mainAnnouncementAnonKey ?? ""),
   showAnnouncementPopup: value?.showAnnouncementPopup !== false,
 });
 

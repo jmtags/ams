@@ -16,6 +16,7 @@ import {
 const initialConfig: InstanceConfig = {
   mode: "sub",
   mainAnnouncementApiUrl: "",
+  mainAnnouncementAnonKey: "",
   showAnnouncementPopup: true,
 };
 
@@ -126,6 +127,19 @@ export function AdminSettingsPage() {
                   }))
                 }
                 placeholder="https://main-project.supabase.co/functions/v1/get-public-announcements"
+                disabled={isLoading || isSaving || config.mode === "main"}
+              />
+
+              <Input
+                label="Main Supabase Anon Key"
+                value={config.mainAnnouncementAnonKey}
+                onChange={(event) =>
+                  setConfig((prev) => ({
+                    ...prev,
+                    mainAnnouncementAnonKey: event.target.value,
+                  }))
+                }
+                placeholder="Paste the main project anon public key"
                 disabled={isLoading || isSaving || config.mode === "main"}
               />
 
