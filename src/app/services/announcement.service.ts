@@ -40,7 +40,10 @@ const activeAnnouncementFilter = (query: any) => {
 const normalizeRemoteAnnouncements = (payload: any): Announcement[] => {
   const rows = Array.isArray(payload) ? payload : payload?.announcements;
   if (!Array.isArray(rows)) return [];
-  return rows as Announcement[];
+  return rows.map((row: any) => ({
+    ...row,
+    image_url: row.image_url || row.imageUrl || null,
+  })) as Announcement[];
 };
 
 const uploadAnnouncementImage = async (file: File): Promise<string> => {

@@ -1536,7 +1536,15 @@ export function UserDashboardPage() {
                     {announcement.image_url &&
                       announcementImageErrors.includes(announcement.id) && (
                         <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
-                          Announcement image is unavailable.
+                          <div>Announcement image is unavailable.</div>
+                          <a
+                            href={announcement.image_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="mt-1 inline-block text-amber-800 underline"
+                          >
+                            Open image
+                          </a>
                         </div>
                       )}
                     <p className="whitespace-pre-wrap text-sm text-neutral-700">

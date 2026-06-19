@@ -34,8 +34,16 @@ serve(async (req) => {
 
     if (error) throw error;
 
-    return new Response(JSON.stringify({ announcements: data ?? [] }), {
-      headers: corsHeaders,
+    const announcements = (data ?? []).map((announcement) => ({
+      ...announcement,
+      image_url: announcement.image_url || null,
+    }));
+
+    return new Response(JSON.stringify({ announcements }), {
+      headers: {
+        ...corsHeaders,
+        "Cache-Control": "no-store",
+      },
     });
   } catch (err: any) {
     return new Response(
