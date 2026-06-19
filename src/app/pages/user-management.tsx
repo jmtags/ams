@@ -86,6 +86,8 @@ const initialRestDayFormData: RestDayFormData = {
   effective_to: "",
 };
 
+const restDaysPageSize = 10;
+
 export function UserManagementPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
@@ -113,6 +115,16 @@ export function UserManagementPage() {
     initialRestDayFormData
   );
   const [editingRestDay, setEditingRestDay] = useState<RestDay | null>(null);
+  const [restDaysPage, setRestDaysPage] = useState(1);
+
+  const restDaysTotalPages = Math.max(
+    1,
+    Math.ceil(restDays.length / restDaysPageSize)
+  );
+  const paginatedRestDays = restDays.slice(
+    (restDaysPage - 1) * restDaysPageSize,
+    restDaysPage * restDaysPageSize
+  );
 
   useEffect(() => {
     loadData();
@@ -145,6 +157,12 @@ export function UserManagementPage() {
     );
   }, [searchQuery, users]);
 
+  useEffect(() => {
+    setRestDaysPage((currentPage) =>
+      Math.min(currentPage, restDaysTotalPages)
+    );
+  }, [restDaysTotalPages]);
+
   const loadData = async () => {
     try {
       setIsPageLoading(true);
@@ -171,6 +189,7 @@ export function UserManagementPage() {
       setIsRestLoading(true);
       const data = await restDayService.getUserRestDays(userId);
       setRestDays(data ?? []);
+      setRestDaysPage(1);
     } catch (err) {
       console.error("Error loading rest days:", err);
       setRestError(
@@ -316,6 +335,7 @@ export function UserManagementPage() {
     setIsRestDialogOpen(false);
     setSelectedUser(null);
     setRestDays([]);
+    setRestDaysPage(1);
     setRestError("");
     resetRestDayForm();
   };
@@ -699,8 +719,11 @@ export function UserManagementPage() {
         open={isRestDialogOpen}
         onOpenChange={(open) => !open && handleCloseRestDialog()}
       >
-        <DialogContent onClose={handleCloseRestDialog}>
-          <DialogHeader>
+        <DialogContent
+          onClose={handleCloseRestDialog}
+          className="max-h-[90vh] flex flex-col overflow-hidden"
+        >
+          <DialogHeader className="shrink-0">
             <DialogTitle>
               Manage Rest Days{selectedUser?.name ? ` - ${selectedUser.name}` : ""}
             </DialogTitle>
@@ -709,7 +732,7 @@ export function UserManagementPage() {
             </DialogDescription>
           </DialogHeader>
 
-          <DialogBody>
+          <DialogBody className="min-h-0 overflow-y-auto">
             {restError && (
               <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
                 {restError}
@@ -794,67 +817,113 @@ export function UserManagementPage() {
                 </div>
               )}
 
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Day</TableHead>
-                    <TableHead>Effective From</TableHead>
-                    <TableHead>Effective To</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-
-                <TableBody>
-                  {isRestLoading && restDays.length === 0 ? (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
                     <TableRow>
-                      <TableCell colSpan={4} className="text-center text-neutral-500 py-8">
-                        Loading rest days...
-                      </TableCell>
+                      <TableHead>Day</TableHead>
+                      <TableHead>Effective From</TableHead>
+                      <TableHead>Effective To</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
-                  ) : restDays.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={4} className="text-center text-neutral-500 py-8">
-                        No rest days found
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    restDays.map((restDay) => (
-                      <TableRow key={restDay.id}>
-                        <TableCell>{restDay.day_of_week}</TableCell>
-                        <TableCell>{restDay.effective_from}</TableCell>
-                        <TableCell>{restDay.effective_to || "-"}</TableCell>
-                        <TableCell>
-                          <div className="flex justify-end gap-2">
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleEditRestDay(restDay)}
-                              disabled={isRestLoading}
-                            >
-                              <Pencil className="w-4 h-4" />
-                            </Button>
+                  </TableHeader>
 
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleDeleteRestDay(restDay.id)}
-                              disabled={isRestLoading}
-                            >
-                              <Trash2 className="w-4 h-4 text-red-600" />
-                            </Button>
-                          </div>
+                  <TableBody>
+                    {isRestLoading && restDays.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={4} className="text-center text-neutral-500 py-8">
+                          Loading rest days...
                         </TableCell>
                       </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
+                    ) : restDays.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={4} className="text-center text-neutral-500 py-8">
+                          No rest days found
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      paginatedRestDays.map((restDay) => (
+                        <TableRow key={restDay.id}>
+                          <TableCell>{restDay.day_of_week}</TableCell>
+                          <TableCell>{restDay.effective_from}</TableCell>
+                          <TableCell>{restDay.effective_to || "-"}</TableCell>
+                          <TableCell>
+                            <div className="flex justify-end gap-2">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleEditRestDay(restDay)}
+                                disabled={isRestLoading}
+                              >
+                                <Pencil className="w-4 h-4" />
+                              </Button>
+
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDeleteRestDay(restDay.id)}
+                                disabled={isRestLoading}
+                              >
+                                <Trash2 className="w-4 h-4 text-red-600" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {restDays.length > restDaysPageSize && (
+                <div className="flex flex-col gap-3 border-t border-neutral-200 pt-4 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-sm text-neutral-600">
+                    Showing {(restDaysPage - 1) * restDaysPageSize + 1}-
+                    {Math.min(restDaysPage * restDaysPageSize, restDays.length)} of{" "}
+                    {restDays.length} rest days
+                  </p>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        setRestDaysPage((page) => Math.max(1, page - 1))
+                      }
+                      disabled={restDaysPage === 1 || isRestLoading}
+                    >
+                      Previous
+                    </Button>
+
+                    <div className="min-w-24 text-center text-sm text-neutral-600">
+                      Page {restDaysPage} of {restDaysTotalPages}
+                    </div>
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        setRestDaysPage((page) =>
+                          Math.min(restDaysTotalPages, page + 1)
+                        )
+                      }
+                      disabled={
+                        restDaysPage === restDaysTotalPages || isRestLoading
+                      }
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           </DialogBody>
 
-          <DialogFooter>
+          <DialogFooter className="shrink-0">
             <Button
               type="button"
               variant="outline"
