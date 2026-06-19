@@ -4,6 +4,7 @@ import { UserDashboardPage } from "./pages/user-dashboard";
 import { ProfilePage } from "./pages/profile";
 import { UserPayrollPage } from "./pages/user-payroll";
 import { UserPayslipDetailsPage } from "./pages/user-payslip-details";
+import { UserShiftChangeRequestsPage } from "./pages/user-shift-change-requests";
 
 import { AdminDashboardPage } from "./pages/admin-dashboard";
 import { AdminReportsPage } from "./pages/admin-reports";
@@ -16,6 +17,7 @@ import { ManualAttendanceManagementPage } from "./pages/manual-attendance-manage
 import { AttendanceAdjustmentsManagementPage } from "./pages/attendance-adjustments-management";
 import { AttendanceActivityLogManagementPage } from "./pages/attendance-activity-log-management";
 import { OvertimeApprovalsPage } from "./pages/overtime-approvals-page";
+import { AdminShiftChangeRequestsPage } from "./pages/admin-shift-change-requests";
 
 import ManageHolidaysPage from "./pages/manage-holidays";
 import ManageLeaveTypesPage from "./pages/manage-leave-types-page";
@@ -74,6 +76,14 @@ export const router = createBrowserRouter([
     element: (
       <ProtectedRoute>
         <UserPayslipDetailsPage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/shift-change-requests",
+    element: (
+      <ProtectedRoute>
+        <UserShiftChangeRequestsPage />
       </ProtectedRoute>
     ),
   },
@@ -158,6 +168,14 @@ export const router = createBrowserRouter([
     element: (
       <ProtectedRoute allowedRoles={["admin", "hr", "payroll"]}>
         <OvertimeApprovalsPage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/admin/shift-change-requests",
+    element: (
+      <ProtectedRoute allowedRoles={["admin", "hr", "payroll"]}>
+        <AdminShiftChangeRequestsPage />
       </ProtectedRoute>
     ),
   },

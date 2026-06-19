@@ -124,7 +124,33 @@ const resolveAttendanceStatus = ({
   return "present";
 };
 
-async function getUserShift(userId: string) {
+async function getUserShift(userId: string, date?: string) {
+  if (date) {
+    const { data: request, error: requestError } = await supabase
+      .from("shift_change_requests")
+      .select(
+        `
+        requested_shift_id,
+        requested_shift:requested_shift_id (*)
+      `
+      )
+      .eq("user_id", userId)
+      .eq("request_date", date)
+      .eq("status", "approved")
+      .maybeSingle();
+
+    if (requestError) throw requestError;
+
+    const approvedShift = (request as any)?.requested_shift;
+    if (approvedShift?.id) {
+      if (!approvedShift.is_active) {
+        throw new Error("Approved shift change uses an inactive shift.");
+      }
+
+      return approvedShift;
+    }
+  }
+
   const { data: user, error: userError } = await supabase
     .from("users")
     .select("id, shift_id")
@@ -233,7 +259,7 @@ export const attendanceService = {
 
     if (existingError) throw existingError;
 
-    const shift = await getUserShift(userId);
+    const shift = await getUserShift(userId, today);
     const { scheduledStart, scheduledEnd } = getShiftSchedule(today, shift);
     const dayContext = await getDayContext(userId, today, shift.location_id);
 
@@ -448,14 +474,7 @@ export const attendanceService = {
       if (existingError) throw existingError;
       if (existing) continue;
 
-      const { data: shift, error: shiftError } = await supabase
-        .from("shifts")
-        .select("*")
-        .eq("id", user.shift_id)
-        .eq("is_active", true)
-        .single();
-
-      if (shiftError) throw shiftError;
+      const shift = await getUserShift(user.id, date);
 
       const { scheduledStart, scheduledEnd } = getShiftSchedule(date, shift);
       const dayContext = await getDayContext(user.id, date, shift.location_id);

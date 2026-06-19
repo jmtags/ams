@@ -4,6 +4,7 @@ import {
   LayoutDashboard,
   User,
   Wallet,
+  CalendarClock,
   Menu,
   X,
   LogOut,
@@ -32,6 +33,11 @@ const navigation = [
     href: '/my-payroll',
     icon: Wallet,
   },
+  {
+    name: 'Shift Change',
+    href: '/shift-change-requests',
+    icon: CalendarClock,
+  },
 ];
 
 export function UserLayout({ children }: UserLayoutProps) {
@@ -59,6 +65,10 @@ export function UserLayout({ children }: UserLayoutProps) {
         location.pathname === '/my-payroll' ||
         location.pathname.startsWith('/my-payroll/')
       );
+    }
+
+    if (href === '/shift-change-requests') {
+      return location.pathname === '/shift-change-requests';
     }
 
     return location.pathname === href;

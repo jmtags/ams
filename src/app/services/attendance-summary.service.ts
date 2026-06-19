@@ -48,6 +48,13 @@ type DbShift = {
   location_id: string | null
 }
 
+type DbShiftChangeRequest = {
+  id: string
+  user_id: string
+  request_date: string
+  requested_shift_id: string
+}
+
 type DbHoliday = {
   id: string
   name: string
@@ -190,6 +197,7 @@ const findHolidayForDate = (
 const createSyntheticAbsentRecord = (
   user: DbUser,
   locationId: string | null,
+  shiftId: string | null,
   dateString: string
 ): DashboardAttendanceRow => ({
   id: `synthetic-absent-${user.id}-${dateString}`,
@@ -199,7 +207,7 @@ const createSyntheticAbsentRecord = (
   date: dateString,
   status: "absent",
   locationId,
-  shiftId: user.shift_id,
+  shiftId,
   scheduledStart: null,
   scheduledEnd: null,
   minutesLate: 0,
@@ -229,6 +237,7 @@ const createSyntheticAbsentRecord = (
 const createSyntheticLeaveRecord = (
   user: DbUser,
   locationId: string | null,
+  shiftId: string | null,
   dateString: string,
   leave: ApprovedLeaveResolved
 ): DashboardAttendanceRow => ({
@@ -239,7 +248,7 @@ const createSyntheticLeaveRecord = (
   date: dateString,
   status: "approved_leave",
   locationId,
-  shiftId: user.shift_id,
+  shiftId,
   scheduledStart: null,
   scheduledEnd: null,
   minutesLate: 0,
@@ -295,6 +304,7 @@ export const attendanceSummaryService = {
       holidaysRes,
       restDaysRes,
       approvedLeaveDatesRes,
+      shiftChangeRequestsRes,
     ] = await Promise.all([
       supabase.from("users").select("id, name, email, department, shift_id").order("name"),
       supabase.from("shifts").select("id, location_id"),
@@ -333,6 +343,12 @@ export const attendanceSummaryService = {
         .gte("leave_date", startDate)
         .lte("leave_date", endDate)
         .eq("leave_requests.status", "approved"),
+      supabase
+        .from("shift_change_requests")
+        .select("id, user_id, request_date, requested_shift_id")
+        .gte("request_date", startDate)
+        .lte("request_date", endDate)
+        .eq("status", "approved"),
     ])
 
     if (usersRes.error) throw usersRes.error
@@ -341,12 +357,14 @@ export const attendanceSummaryService = {
     if (holidaysRes.error) throw holidaysRes.error
     if (restDaysRes.error) throw restDaysRes.error
     if (approvedLeaveDatesRes.error) throw approvedLeaveDatesRes.error
+    if (shiftChangeRequestsRes.error) throw shiftChangeRequestsRes.error
 
     const users = (usersRes.data || []) as DbUser[]
     const shifts = (shiftsRes.data || []) as DbShift[]
     const holidays = (holidaysRes.data || []) as DbHoliday[]
     const restDays = (restDaysRes.data || []) as DbRestDay[]
     const attendance = (attendanceRes.data || []).map(mapAttendance)
+    const shiftChangeRequests = (shiftChangeRequestsRes.data || []) as DbShiftChangeRequest[]
 
     const approvedLeaveDatesRaw = (approvedLeaveDatesRes.data || []) as DbApprovedLeaveDateRow[]
 
@@ -385,6 +403,11 @@ export const attendanceSummaryService = {
       approvedLeaveByUserDate.set(`${leave.userId}__${leave.leaveDate}`, leave)
     })
 
+    const shiftChangeByUserDate = new Map<string, DbShiftChangeRequest>()
+    shiftChangeRequests.forEach((request) => {
+      shiftChangeByUserDate.set(`${request.user_id}__${request.request_date}`, request)
+    })
+
     const dateList = getDatesBetween(startDate, endDate)
 
     const detailedRows: DashboardAttendanceRow[] = []
@@ -412,7 +435,12 @@ export const attendanceSummaryService = {
       })
 
       dateList.forEach((dateString) => {
-        const holiday = findHolidayForDate(holidays, dateString, userLocationId)
+        const approvedShiftChange = shiftChangeByUserDate.get(`${user.id}__${dateString}`)
+        const effectiveShiftId = approvedShiftChange?.requested_shift_id ?? user.shift_id
+        const effectiveLocationId = effectiveShiftId
+          ? (shiftLocationMap.get(effectiveShiftId) ?? null)
+          : userLocationId
+        const holiday = findHolidayForDate(holidays, dateString, effectiveLocationId)
         const isHoliday = Boolean(holiday)
         const isRestDay = isRestDayForDate(restDays, user.id, dateString)
         const existing = attendanceByUserDate.get(`${user.id}__${dateString}`)
@@ -460,7 +488,8 @@ export const attendanceSummaryService = {
         if (approvedLeave) {
           const syntheticLeave = createSyntheticLeaveRecord(
             user,
-            userLocationId,
+            effectiveLocationId,
+            effectiveShiftId,
             dateString,
             approvedLeave
           )
@@ -486,7 +515,8 @@ export const attendanceSummaryService = {
 
         const syntheticAbsent = createSyntheticAbsentRecord(
           user,
-          userLocationId,
+          effectiveLocationId,
+          effectiveShiftId,
           dateString
         )
 

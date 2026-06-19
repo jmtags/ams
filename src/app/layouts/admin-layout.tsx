@@ -14,6 +14,7 @@ import {
   ClipboardPenLine,
   ClipboardCheck,
   ClipboardList,
+  CalendarClock,
   ChevronDown,
   Menu,
   X,
@@ -37,7 +38,7 @@ type NavItem = {
   label: string;
   to: string;
   icon: ReactNode;
-  badgeKey?: "leaveRequests" | "attendanceAdjustments";
+  badgeKey?: "leaveRequests" | "attendanceAdjustments" | "shiftChangeRequests";
 };
 
 type NavGroup = {
@@ -108,6 +109,12 @@ const navGroups: NavGroup[] = [
         label: "Overtime Approvals",
         to: "/admin/overtime-approvals",
         icon: <Clock3 className="h-4 w-4" />,
+      },
+      {
+        label: "Shift Change Requests",
+        to: "/admin/shift-change-requests",
+        icon: <CalendarClock className="h-4 w-4" />,
+        badgeKey: "shiftChangeRequests",
       },
       {
         label: "Activity Logs",
@@ -194,6 +201,7 @@ const navGroups: NavGroup[] = [
 type PendingCounts = {
   leaveRequests: number;
   attendanceAdjustments: number;
+  shiftChangeRequests: number;
 };
 
 function NotificationBubble({ count }: { count: number }) {
@@ -274,6 +282,8 @@ function SidebarGroup({
                 ? badgeCounts.leaveRequests
                 : item.badgeKey === "attendanceAdjustments"
                 ? badgeCounts.attendanceAdjustments
+                : item.badgeKey === "shiftChangeRequests"
+                ? badgeCounts.shiftChangeRequests
                 : 0;
 
             return <SidebarLink key={item.to} item={item} count={count} />;
@@ -289,6 +299,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
   const [badgeCounts, setBadgeCounts] = useState<PendingCounts>({
     leaveRequests: 0,
     attendanceAdjustments: 0,
+    shiftChangeRequests: 0,
   });
   const { user } = useAuth();
 
@@ -304,6 +315,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
 
       const shouldLoadLeaveRequests = ["admin", "hr", "payroll"].includes(currentRole);
       const shouldLoadAttendanceAdjustments = ["admin", "hr", "payroll"].includes(currentRole);
+      const shouldLoadShiftChangeRequests = ["admin", "hr", "payroll"].includes(currentRole);
 
       if (shouldLoadLeaveRequests) {
         requestsToLoad.push(
@@ -327,7 +339,22 @@ export function AdminLayout({ children }: AdminLayoutProps) {
         requestsToLoad.push(Promise.resolve({ count: 0 }));
       }
 
-      const [leaveRequestsResult, attendanceAdjustmentsResult] =
+      if (shouldLoadShiftChangeRequests) {
+        requestsToLoad.push(
+          supabase
+            .from("shift_change_requests")
+            .select("id", { count: "exact", head: true })
+            .eq("status", "pending")
+        );
+      } else {
+        requestsToLoad.push(Promise.resolve({ count: 0 }));
+      }
+
+      const [
+        leaveRequestsResult,
+        attendanceAdjustmentsResult,
+        shiftChangeRequestsResult,
+      ] =
         await Promise.all(requestsToLoad);
 
       setBadgeCounts({
@@ -336,6 +363,10 @@ export function AdminLayout({ children }: AdminLayoutProps) {
         attendanceAdjustments:
           "count" in attendanceAdjustmentsResult
             ? attendanceAdjustmentsResult.count ?? 0
+            : 0,
+        shiftChangeRequests:
+          "count" in shiftChangeRequestsResult
+            ? shiftChangeRequestsResult.count ?? 0
             : 0,
       });
     } catch (error) {
@@ -372,9 +403,21 @@ export function AdminLayout({ children }: AdminLayoutProps) {
       )
       .subscribe();
 
+    const shiftChangeChannel = supabase
+      .channel("sidebar-shift-change-requests-count")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "shift_change_requests" },
+        () => {
+          loadPendingCounts();
+        }
+      )
+      .subscribe();
+
     return () => {
       supabase.removeChannel(leaveChannel);
       supabase.removeChannel(adjustmentChannel);
+      supabase.removeChannel(shiftChangeChannel);
     };
   }, [currentRole]);
 
@@ -482,7 +525,9 @@ export function AdminLayout({ children }: AdminLayoutProps) {
               </div>
 
               <div className="flex items-center gap-2">
-                {badgeCounts.leaveRequests > 0 || badgeCounts.attendanceAdjustments > 0 ? (
+                {badgeCounts.leaveRequests > 0 ||
+                badgeCounts.attendanceAdjustments > 0 ||
+                badgeCounts.shiftChangeRequests > 0 ? (
                   <div className="hidden md:flex items-center gap-2">
                     {badgeCounts.leaveRequests > 0 && (
                       <Badge variant="warning">
@@ -492,6 +537,11 @@ export function AdminLayout({ children }: AdminLayoutProps) {
                     {badgeCounts.attendanceAdjustments > 0 && (
                       <Badge variant="warning">
                         {badgeCounts.attendanceAdjustments} Pending Adjustments
+                      </Badge>
+                    )}
+                    {badgeCounts.shiftChangeRequests > 0 && (
+                      <Badge variant="warning">
+                        {badgeCounts.shiftChangeRequests} Pending Shift Changes
                       </Badge>
                     )}
                   </div>
