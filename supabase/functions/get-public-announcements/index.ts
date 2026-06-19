@@ -24,7 +24,7 @@ serve(async (req) => {
     const { data, error } = await supabaseAdmin
       .from("announcements")
       .select(
-        "id, title, message, severity, is_active, starts_at, ends_at, created_at, updated_at"
+        "id, title, message, image_url, severity, is_active, starts_at, ends_at, created_at, updated_at"
       )
       .eq("is_active", true)
       .or(`starts_at.is.null,starts_at.lte.${now}`)

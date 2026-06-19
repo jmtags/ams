@@ -1518,6 +1518,15 @@ export function UserDashboardPage() {
                         {announcement.severity}
                       </Badge>
                     </div>
+                    {announcement.image_url && (
+                      <div className="mb-3 overflow-hidden rounded-lg border border-neutral-200 bg-white">
+                        <img
+                          src={announcement.image_url}
+                          alt={announcement.title}
+                          className="max-h-80 w-full object-contain"
+                        />
+                      </div>
+                    )}
                     <p className="whitespace-pre-wrap text-sm text-neutral-700">
                       {announcement.message}
                     </p>

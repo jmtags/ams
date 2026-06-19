@@ -7,6 +7,7 @@ export type Announcement = {
   id: string;
   title: string;
   message: string;
+  image_url: string | null;
   severity: AnnouncementSeverity;
   is_active: boolean;
   starts_at: string | null;
@@ -19,6 +20,7 @@ export type Announcement = {
 export type AnnouncementFormPayload = {
   title: string;
   message: string;
+  image_url?: string | null;
   severity: AnnouncementSeverity;
   is_active: boolean;
   starts_at?: string | null;
@@ -92,6 +94,7 @@ export const announcementService = {
       .insert({
         title: payload.title.trim(),
         message: payload.message.trim(),
+        image_url: payload.image_url?.trim() || null,
         severity: payload.severity,
         is_active: payload.is_active,
         starts_at: payload.starts_at || null,
@@ -114,6 +117,7 @@ export const announcementService = {
       .update({
         title: payload.title.trim(),
         message: payload.message.trim(),
+        image_url: payload.image_url?.trim() || null,
         severity: payload.severity,
         is_active: payload.is_active,
         starts_at: payload.starts_at || null,

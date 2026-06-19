@@ -58,6 +58,7 @@ create table if not exists public.announcements (
   id uuid primary key default gen_random_uuid(),
   title text not null,
   message text not null,
+  image_url text,
   severity text not null default 'info',
   is_active boolean not null default true,
   starts_at timestamp with time zone,
@@ -70,6 +71,7 @@ create table if not exists public.announcements (
 alter table public.announcements
   add column if not exists title text,
   add column if not exists message text,
+  add column if not exists image_url text,
   add column if not exists severity text default 'info',
   add column if not exists is_active boolean default true,
   add column if not exists starts_at timestamp with time zone,

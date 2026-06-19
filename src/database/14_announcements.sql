@@ -31,6 +31,7 @@ create table if not exists public.announcements (
   id uuid primary key default gen_random_uuid(),
   title text not null,
   message text not null,
+  image_url text,
   severity text not null default 'info'
     check (severity in ('info', 'warning', 'urgent')),
   is_active boolean not null default true,
@@ -40,6 +41,9 @@ create table if not exists public.announcements (
   created_at timestamp with time zone not null default now(),
   updated_at timestamp with time zone not null default now()
 );
+
+alter table public.announcements
+  add column if not exists image_url text;
 
 create index if not exists idx_announcements_active_dates
 on public.announcements(is_active, starts_at, ends_at);

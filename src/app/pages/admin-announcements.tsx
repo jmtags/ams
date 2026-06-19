@@ -36,6 +36,7 @@ import { appSettingsService } from "../services/app-settings.service";
 type FormState = {
   title: string;
   message: string;
+  image_url: string;
   severity: AnnouncementSeverity;
   is_active: boolean;
   starts_at: string;
@@ -45,6 +46,7 @@ type FormState = {
 const initialForm: FormState = {
   title: "",
   message: "",
+  image_url: "",
   severity: "info",
   is_active: true,
   starts_at: "",
@@ -120,6 +122,7 @@ export function AdminAnnouncementsPage() {
         ? {
             title: announcement.title,
             message: announcement.message,
+            image_url: announcement.image_url ?? "",
             severity: announcement.severity,
             is_active: announcement.is_active,
             starts_at: toDateTimeInput(announcement.starts_at),
@@ -152,6 +155,7 @@ export function AdminAnnouncementsPage() {
       const payload = {
         title: form.title,
         message: form.message,
+        image_url: form.image_url,
         severity: form.severity,
         is_active: form.is_active,
         starts_at: fromDateTimeInput(form.starts_at),
@@ -261,6 +265,11 @@ export function AdminAnnouncementsPage() {
                       <TableRow key={announcement.id}>
                         <TableCell>
                           <div className="font-medium">{announcement.title}</div>
+                          {announcement.image_url && (
+                            <div className="text-xs text-neutral-500">
+                              Has image
+                            </div>
+                          )}
                           <div className="max-w-[420px] truncate text-xs text-neutral-500">
                             {announcement.message}
                           </div>
@@ -347,6 +356,26 @@ export function AdminAnnouncementsPage() {
                     required
                   />
                 </div>
+
+                <Input
+                  label="Image URL"
+                  value={form.image_url}
+                  onChange={(event) =>
+                    setForm((prev) => ({ ...prev, image_url: event.target.value }))
+                  }
+                  placeholder="https://example.com/announcement-image.jpg"
+                  disabled={isSaving}
+                />
+
+                {form.image_url.trim() && (
+                  <div className="overflow-hidden rounded-lg border border-neutral-200 bg-neutral-50">
+                    <img
+                      src={form.image_url.trim()}
+                      alt="Announcement preview"
+                      className="max-h-64 w-full object-contain"
+                    />
+                  </div>
+                )}
 
                 <Select
                   label="Severity"
