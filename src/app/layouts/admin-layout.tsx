@@ -15,6 +15,7 @@ import {
   ClipboardCheck,
   ClipboardList,
   CalendarClock,
+  Megaphone,
   ChevronDown,
   Menu,
   X,
@@ -27,6 +28,7 @@ import { Badge } from "../components/ui/badge";
 import { cn } from "../lib/utils";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../hooks/useAuth";
+import { appSettingsService } from "../services/app-settings.service";
 
 type AppRole = "user" | "admin" | "hr" | "payroll";
 
@@ -296,6 +298,7 @@ function SidebarGroup({
 
 export function AdminLayout({ children }: AdminLayoutProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [isMainInstance, setIsMainInstance] = useState(false);
   const [badgeCounts, setBadgeCounts] = useState<PendingCounts>({
     leaveRequests: 0,
     attendanceAdjustments: 0,
@@ -305,9 +308,39 @@ export function AdminLayout({ children }: AdminLayoutProps) {
 
   const currentRole = (user?.role ?? "user") as AppRole;
 
-  const visibleGroups = navGroups.filter((group) =>
-    group.roles.includes(currentRole)
-  );
+  const visibleGroups = useMemo(() => {
+    const groups = navGroups.filter((group) => group.roles.includes(currentRole));
+
+    if (isMainInstance && ["admin", "hr", "payroll"].includes(currentRole)) {
+      return [
+        ...groups.slice(0, -1),
+        {
+          label: "Communications",
+          roles: ["admin", "hr", "payroll"] as AppRole[],
+          items: [
+            {
+              label: "Announcements",
+              to: "/admin/announcements",
+              icon: <Megaphone className="h-4 w-4" />,
+            },
+          ],
+        },
+        ...groups.slice(-1),
+      ];
+    }
+
+    return groups;
+  }, [currentRole, isMainInstance]);
+
+  const loadInstanceMode = async () => {
+    try {
+      const config = await appSettingsService.getInstanceConfig();
+      setIsMainInstance(config.mode === "main");
+    } catch (error) {
+      console.error("Error loading instance mode:", error);
+      setIsMainInstance(false);
+    }
+  };
 
   const loadPendingCounts = async () => {
     try {
@@ -375,6 +408,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
   };
 
   useEffect(() => {
+    loadInstanceMode();
     loadPendingCounts();
   }, [currentRole]);
 

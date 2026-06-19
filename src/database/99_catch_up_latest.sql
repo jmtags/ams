@@ -8,6 +8,99 @@
 begin;
 
 -- =========================================================
+-- Instance settings + announcements
+-- =========================================================
+
+create table if not exists public.app_settings (
+  key text primary key,
+  value jsonb not null default '{}'::jsonb,
+  updated_by uuid references public.users(id),
+  updated_at timestamp with time zone not null default now()
+);
+
+alter table public.app_settings
+  add column if not exists value jsonb default '{}'::jsonb,
+  add column if not exists updated_by uuid references public.users(id),
+  add column if not exists updated_at timestamp with time zone default now();
+
+update public.app_settings
+set
+  value = coalesce(value, '{}'::jsonb),
+  updated_at = coalesce(updated_at, now());
+
+alter table public.app_settings
+  alter column value set default '{}'::jsonb,
+  alter column value set not null,
+  alter column updated_at set default now(),
+  alter column updated_at set not null;
+
+insert into public.app_settings (key, value)
+values (
+  'instance_config',
+  jsonb_build_object(
+    'mode', 'sub',
+    'mainAnnouncementApiUrl', '',
+    'showAnnouncementPopup', true
+  )
+)
+on conflict (key) do nothing;
+
+create table if not exists public.announcements (
+  id uuid primary key default gen_random_uuid(),
+  title text not null,
+  message text not null,
+  severity text not null default 'info',
+  is_active boolean not null default true,
+  starts_at timestamp with time zone,
+  ends_at timestamp with time zone,
+  created_by uuid references public.users(id),
+  created_at timestamp with time zone not null default now(),
+  updated_at timestamp with time zone not null default now()
+);
+
+alter table public.announcements
+  add column if not exists title text,
+  add column if not exists message text,
+  add column if not exists severity text default 'info',
+  add column if not exists is_active boolean default true,
+  add column if not exists starts_at timestamp with time zone,
+  add column if not exists ends_at timestamp with time zone,
+  add column if not exists created_by uuid references public.users(id),
+  add column if not exists created_at timestamp with time zone default now(),
+  add column if not exists updated_at timestamp with time zone default now();
+
+update public.announcements
+set
+  title = coalesce(title, 'Migrated announcement'),
+  message = coalesce(message, ''),
+  severity = coalesce(severity, 'info'),
+  is_active = coalesce(is_active, true),
+  created_at = coalesce(created_at, now()),
+  updated_at = coalesce(updated_at, now());
+
+alter table public.announcements
+  alter column title set not null,
+  alter column message set not null,
+  alter column severity set default 'info',
+  alter column severity set not null,
+  alter column is_active set default true,
+  alter column is_active set not null,
+  alter column created_at set default now(),
+  alter column created_at set not null,
+  alter column updated_at set default now(),
+  alter column updated_at set not null;
+
+alter table public.announcements
+  drop constraint if exists announcements_severity_check;
+
+alter table public.announcements
+  add constraint announcements_severity_check
+  check (severity in ('info', 'warning', 'urgent'));
+
+create index if not exists idx_announcements_active_dates
+on public.announcements(is_active, starts_at, ends_at);
+
+-- =========================================================
 -- Manual attendance + attendance adjustment requests
 -- =========================================================
 
@@ -387,6 +480,8 @@ alter table public.payroll_adjustments enable row level security;
 alter table public.employee_recurring_deductions enable row level security;
 alter table public.user_rest_days enable row level security;
 alter table public.shift_change_requests enable row level security;
+alter table public.app_settings enable row level security;
+alter table public.announcements enable row level security;
 
 -- Attendance adjustments
 drop policy if exists "Staff can view attendance adjustments" on public.attendance_adjustments;
@@ -593,6 +688,36 @@ using (exists (select 1 from public.users u where u.id = auth.uid() and u.role i
 
 create policy "Staff can update shift change requests"
 on public.shift_change_requests for update to authenticated
+using (exists (select 1 from public.users u where u.id = auth.uid() and u.role in ('admin', 'hr', 'payroll')))
+with check (exists (select 1 from public.users u where u.id = auth.uid() and u.role in ('admin', 'hr', 'payroll')));
+
+-- App settings
+drop policy if exists "Authenticated users can read app settings" on public.app_settings;
+drop policy if exists "Staff can manage app settings" on public.app_settings;
+
+create policy "Authenticated users can read app settings"
+on public.app_settings for select to authenticated
+using (true);
+
+create policy "Staff can manage app settings"
+on public.app_settings for all to authenticated
+using (exists (select 1 from public.users u where u.id = auth.uid() and u.role in ('admin', 'hr', 'payroll')))
+with check (exists (select 1 from public.users u where u.id = auth.uid() and u.role in ('admin', 'hr', 'payroll')));
+
+-- Announcements
+drop policy if exists "Authenticated users can view active announcements" on public.announcements;
+drop policy if exists "Staff can manage announcements" on public.announcements;
+
+create policy "Authenticated users can view active announcements"
+on public.announcements for select to authenticated
+using (
+  is_active = true
+  and (starts_at is null or starts_at <= now())
+  and (ends_at is null or ends_at >= now())
+);
+
+create policy "Staff can manage announcements"
+on public.announcements for all to authenticated
 using (exists (select 1 from public.users u where u.id = auth.uid() and u.role in ('admin', 'hr', 'payroll')))
 with check (exists (select 1 from public.users u where u.id = auth.uid() and u.role in ('admin', 'hr', 'payroll')));
 

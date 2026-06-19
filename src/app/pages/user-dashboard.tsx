@@ -12,6 +12,7 @@ import {
   ClipboardList,
   Wallet,
   Receipt,
+  Megaphone,
 } from 'lucide-react';
 import { Link } from 'react-router';
 import { useAuth } from '../hooks/useAuth';
@@ -49,6 +50,11 @@ import { leaveTypeService, LeaveType } from "../services/leave-type.service";
 import { leaveBalanceService } from "../services/leave-balance.service";
 import { leaveRequestService, LeaveRequest } from "../services/leave-request.service";
 import { attendanceAdjustmentRequestService } from "../services/attendance-adjustment-request.service";
+import {
+  announcementService,
+  type Announcement,
+} from "../services/announcement.service";
+import { appSettingsService } from "../services/app-settings.service";
 import { supabase } from "../lib/supabase";
 import type { AttendanceRecord, Location } from '../lib/types';
 import type { PayrollRecord } from '../services/payroll.service';
@@ -230,6 +236,9 @@ export function UserDashboardPage() {
   const [activityLogError, setActivityLogError] = useState('');
   const [activityLogSuccess, setActivityLogSuccess] = useState('');
   const [savedActivityLogCount, setSavedActivityLogCount] = useState(0);
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [isAnnouncementDialogOpen, setIsAnnouncementDialogOpen] = useState(false);
+  const [announcementPopupEnabled, setAnnouncementPopupEnabled] = useState(true);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -306,6 +315,29 @@ export function UserDashboardPage() {
     setPayrollRecords((data ?? []).map(mapPayrollRecord));
   };
 
+  const loadAnnouncements = async () => {
+    if (!user?.id) return;
+
+    try {
+      const [config, activeAnnouncements] = await Promise.all([
+        appSettingsService.getInstanceConfig(),
+        announcementService.getPublicAnnouncements(),
+      ]);
+
+      setAnnouncementPopupEnabled(config.showAnnouncementPopup);
+      setAnnouncements(activeAnnouncements);
+
+      const dismissedKey = `announcements-dismissed-${user.id}`;
+      const dismissed = sessionStorage.getItem(dismissedKey) === 'true';
+
+      if (config.showAnnouncementPopup && activeAnnouncements.length > 0 && !dismissed) {
+        setIsAnnouncementDialogOpen(true);
+      }
+    } catch (err) {
+      console.error("Error loading announcements:", err);
+    }
+  };
+
   const loadAllData = async () => {
     if (!user?.id) return;
 
@@ -334,6 +366,7 @@ export function UserDashboardPage() {
       await Promise.all([
         loadTodayShiftRequirementAndLogs(user.id),
         loadMyPayrollRecords(user.id),
+        loadAnnouncements(),
       ]);
 
       const pendingChecks = await Promise.all(
@@ -432,6 +465,13 @@ export function UserDashboardPage() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const closeAnnouncementDialog = () => {
+    if (user?.id) {
+      sessionStorage.setItem(`announcements-dismissed-${user.id}`, 'true');
+    }
+    setIsAnnouncementDialogOpen(false);
   };
 
   const handleSubmitLeave = async (e: React.FormEvent) => {
@@ -667,11 +707,25 @@ export function UserDashboardPage() {
   return (
     <UserLayout>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-neutral-900 mb-1">
-            {getGreeting()}, {user?.name}
-          </h1>
-          <p className="text-neutral-600">Welcome back to your dashboard</p>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h1 className="text-neutral-900 mb-1">
+              {getGreeting()}, {user?.name}
+            </h1>
+            <p className="text-neutral-600">Welcome back to your dashboard</p>
+          </div>
+
+          {announcementPopupEnabled && announcements.length > 0 && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsAnnouncementDialogOpen(true)}
+              className="flex items-center gap-2"
+            >
+              <Megaphone className="w-4 h-4" />
+              Announcements
+            </Button>
+          )}
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -1422,6 +1476,63 @@ export function UserDashboardPage() {
             </Table>
           </CardContent>
         </Card>
+
+        <Dialog
+          open={isAnnouncementDialogOpen}
+          onOpenChange={(open) => !open && closeAnnouncementDialog()}
+        >
+          <DialogContent
+            onClose={closeAnnouncementDialog}
+            className="max-w-2xl max-h-[90vh] flex flex-col overflow-hidden"
+          >
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Megaphone className="w-5 h-5" />
+                Announcements
+              </DialogTitle>
+              <DialogDescription>
+                Latest announcements from HRIS management.
+              </DialogDescription>
+            </DialogHeader>
+
+            <DialogBody className="min-h-0 overflow-y-auto">
+              <div className="space-y-3">
+                {announcements.map((announcement) => (
+                  <div
+                    key={announcement.id}
+                    className="rounded-lg border border-neutral-200 bg-neutral-50 p-4"
+                  >
+                    <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                      <h3 className="text-base font-medium text-neutral-900">
+                        {announcement.title}
+                      </h3>
+                      <Badge
+                        variant={
+                          announcement.severity === 'urgent'
+                            ? 'danger'
+                            : announcement.severity === 'warning'
+                            ? 'warning'
+                            : 'default'
+                        }
+                      >
+                        {announcement.severity}
+                      </Badge>
+                    </div>
+                    <p className="whitespace-pre-wrap text-sm text-neutral-700">
+                      {announcement.message}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </DialogBody>
+
+            <DialogFooter>
+              <Button type="button" onClick={closeAnnouncementDialog}>
+                Close
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         <Dialog open={isPunchDialogOpen} onOpenChange={(open) => !open && handleClosePunchDialog()}>
           <DialogContent
