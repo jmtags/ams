@@ -45,6 +45,11 @@ create table if not exists public.announcements (
 alter table public.announcements
   add column if not exists image_url text;
 
+insert into storage.buckets (id, name, public)
+values ('announcement-images', 'announcement-images', true)
+on conflict (id) do update
+set public = true;
+
 create index if not exists idx_announcements_active_dates
 on public.announcements(is_active, starts_at, ends_at);
 
@@ -55,6 +60,10 @@ drop policy if exists "Authenticated users can read app settings" on public.app_
 drop policy if exists "Staff can manage app settings" on public.app_settings;
 drop policy if exists "Authenticated users can view active announcements" on public.announcements;
 drop policy if exists "Staff can manage announcements" on public.announcements;
+drop policy if exists "Public can view announcement images" on storage.objects;
+drop policy if exists "Staff can upload announcement images" on storage.objects;
+drop policy if exists "Staff can update announcement images" on storage.objects;
+drop policy if exists "Staff can delete announcement images" on storage.objects;
 
 create policy "Authenticated users can read app settings"
 on public.app_settings
@@ -107,6 +116,63 @@ using (
 )
 with check (
   exists (
+    select 1
+    from public.users u
+    where u.id = auth.uid()
+      and u.role in ('admin', 'hr', 'payroll')
+  )
+);
+
+create policy "Public can view announcement images"
+on storage.objects
+for select
+to public
+using (bucket_id = 'announcement-images');
+
+create policy "Staff can upload announcement images"
+on storage.objects
+for insert
+to authenticated
+with check (
+  bucket_id = 'announcement-images'
+  and exists (
+    select 1
+    from public.users u
+    where u.id = auth.uid()
+      and u.role in ('admin', 'hr', 'payroll')
+  )
+);
+
+create policy "Staff can update announcement images"
+on storage.objects
+for update
+to authenticated
+using (
+  bucket_id = 'announcement-images'
+  and exists (
+    select 1
+    from public.users u
+    where u.id = auth.uid()
+      and u.role in ('admin', 'hr', 'payroll')
+  )
+)
+with check (
+  bucket_id = 'announcement-images'
+  and exists (
+    select 1
+    from public.users u
+    where u.id = auth.uid()
+      and u.role in ('admin', 'hr', 'payroll')
+  )
+);
+
+create policy "Staff can delete announcement images"
+on storage.objects
+for delete
+to authenticated
+using (
+  bucket_id = 'announcement-images'
+  and exists (
     select 1
     from public.users u
     where u.id = auth.uid()

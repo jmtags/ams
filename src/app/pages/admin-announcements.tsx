@@ -37,6 +37,7 @@ type FormState = {
   title: string;
   message: string;
   image_url: string;
+  image_file: File | null;
   severity: AnnouncementSeverity;
   is_active: boolean;
   starts_at: string;
@@ -47,6 +48,7 @@ const initialForm: FormState = {
   title: "",
   message: "",
   image_url: "",
+  image_file: null,
   severity: "info",
   is_active: true,
   starts_at: "",
@@ -91,6 +93,7 @@ export function AdminAnnouncementsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState("");
+  const [imagePreviewUrl, setImagePreviewUrl] = useState("");
 
   const loadData = async () => {
     try {
@@ -123,6 +126,7 @@ export function AdminAnnouncementsPage() {
             title: announcement.title,
             message: announcement.message,
             image_url: announcement.image_url ?? "",
+            image_file: null,
             severity: announcement.severity,
             is_active: announcement.is_active,
             starts_at: toDateTimeInput(announcement.starts_at),
@@ -130,6 +134,7 @@ export function AdminAnnouncementsPage() {
           }
         : initialForm
     );
+    setImagePreviewUrl(announcement?.image_url ?? "");
     setError("");
     setIsDialogOpen(true);
   };
@@ -139,6 +144,23 @@ export function AdminAnnouncementsPage() {
     setIsDialogOpen(false);
     setEditing(null);
     setForm(initialForm);
+    setImagePreviewUrl("");
+  };
+
+  const handleImageFileChange = (file?: File | null) => {
+    if (!file) {
+      setForm((prev) => ({ ...prev, image_file: null }));
+      setImagePreviewUrl(form.image_url);
+      return;
+    }
+
+    if (!file.type.startsWith("image/")) {
+      setError("Please select an image file.");
+      return;
+    }
+
+    setForm((prev) => ({ ...prev, image_file: file }));
+    setImagePreviewUrl(URL.createObjectURL(file));
   };
 
   const handleSubmit = async (event: FormEvent) => {
@@ -156,6 +178,7 @@ export function AdminAnnouncementsPage() {
         title: form.title,
         message: form.message,
         image_url: form.image_url,
+        image_file: form.image_file,
         severity: form.severity,
         is_active: form.is_active,
         starts_at: fromDateTimeInput(form.starts_at),
@@ -360,17 +383,42 @@ export function AdminAnnouncementsPage() {
                 <Input
                   label="Image URL"
                   value={form.image_url}
-                  onChange={(event) =>
-                    setForm((prev) => ({ ...prev, image_url: event.target.value }))
-                  }
-                  placeholder="https://example.com/announcement-image.jpg"
+                  onChange={(event) => {
+                    setImagePreviewUrl(event.target.value);
+                    setForm((prev) => ({
+                      ...prev,
+                      image_url: event.target.value,
+                      image_file: null,
+                    }));
+                  }}
+                  placeholder="Optional public image URL"
                   disabled={isSaving}
                 />
 
-                {form.image_url.trim() && (
+                <div>
+                  <label className="block text-sm mb-1.5 text-neutral-700">
+                    Upload Image
+                  </label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(event) =>
+                      handleImageFileChange(event.target.files?.[0] ?? null)
+                    }
+                    className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm"
+                    disabled={isSaving}
+                  />
+                  {form.image_file && (
+                    <p className="mt-2 text-xs text-neutral-500">
+                      Selected file: {form.image_file.name}
+                    </p>
+                  )}
+                </div>
+
+                {(imagePreviewUrl || form.image_url.trim()) && (
                   <div className="overflow-hidden rounded-lg border border-neutral-200 bg-neutral-50">
                     <img
-                      src={form.image_url.trim()}
+                      src={imagePreviewUrl || form.image_url.trim()}
                       alt="Announcement preview"
                       className="max-h-64 w-full object-contain"
                     />

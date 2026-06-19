@@ -21,6 +21,7 @@ export type AnnouncementFormPayload = {
   title: string;
   message: string;
   image_url?: string | null;
+  image_file?: File | null;
   severity: AnnouncementSeverity;
   is_active: boolean;
   starts_at?: string | null;
@@ -40,6 +41,28 @@ const normalizeRemoteAnnouncements = (payload: any): Announcement[] => {
   const rows = Array.isArray(payload) ? payload : payload?.announcements;
   if (!Array.isArray(rows)) return [];
   return rows as Announcement[];
+};
+
+const uploadAnnouncementImage = async (file: File): Promise<string> => {
+  const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
+  const filePath = `announcements/${Date.now()}-${crypto.randomUUID()}.${ext}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from("announcement-images")
+    .upload(filePath, file, {
+      cacheControl: "3600",
+      upsert: false,
+    });
+
+  if (uploadError) {
+    throw new Error(uploadError.message || "Failed to upload announcement image.");
+  }
+
+  const { data } = supabase.storage
+    .from("announcement-images")
+    .getPublicUrl(filePath);
+
+  return data.publicUrl;
 };
 
 export const announcementService = {
@@ -89,12 +112,16 @@ export const announcementService = {
   },
 
   async create(payload: AnnouncementFormPayload): Promise<Announcement> {
+    const imageUrl = payload.image_file
+      ? await uploadAnnouncementImage(payload.image_file)
+      : payload.image_url?.trim() || null;
+
     const { data, error } = await supabase
       .from("announcements")
       .insert({
         title: payload.title.trim(),
         message: payload.message.trim(),
-        image_url: payload.image_url?.trim() || null,
+        image_url: imageUrl,
         severity: payload.severity,
         is_active: payload.is_active,
         starts_at: payload.starts_at || null,
@@ -112,12 +139,16 @@ export const announcementService = {
     id: string,
     payload: AnnouncementFormPayload
   ): Promise<Announcement> {
+    const imageUrl = payload.image_file
+      ? await uploadAnnouncementImage(payload.image_file)
+      : payload.image_url?.trim() || null;
+
     const { data, error } = await supabase
       .from("announcements")
       .update({
         title: payload.title.trim(),
         message: payload.message.trim(),
-        image_url: payload.image_url?.trim() || null,
+        image_url: imageUrl,
         severity: payload.severity,
         is_active: payload.is_active,
         starts_at: payload.starts_at || null,
