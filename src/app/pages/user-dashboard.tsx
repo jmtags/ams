@@ -239,6 +239,7 @@ export function UserDashboardPage() {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [isAnnouncementDialogOpen, setIsAnnouncementDialogOpen] = useState(false);
   const [announcementPopupEnabled, setAnnouncementPopupEnabled] = useState(true);
+  const [announcementImageErrors, setAnnouncementImageErrors] = useState<string[]>([]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -326,11 +327,9 @@ export function UserDashboardPage() {
 
       setAnnouncementPopupEnabled(config.showAnnouncementPopup);
       setAnnouncements(activeAnnouncements);
+      setAnnouncementImageErrors([]);
 
-      const dismissedKey = `announcements-dismissed-${user.id}`;
-      const dismissed = sessionStorage.getItem(dismissedKey) === 'true';
-
-      if (config.showAnnouncementPopup && activeAnnouncements.length > 0 && !dismissed) {
+      if (config.showAnnouncementPopup && activeAnnouncements.length > 0) {
         setIsAnnouncementDialogOpen(true);
       }
     } catch (err) {
@@ -468,10 +467,13 @@ export function UserDashboardPage() {
   };
 
   const closeAnnouncementDialog = () => {
-    if (user?.id) {
-      sessionStorage.setItem(`announcements-dismissed-${user.id}`, 'true');
-    }
     setIsAnnouncementDialogOpen(false);
+  };
+
+  const handleAnnouncementImageError = (announcementId: string) => {
+    setAnnouncementImageErrors((prev) =>
+      prev.includes(announcementId) ? prev : [...prev, announcementId]
+    );
   };
 
   const handleSubmitLeave = async (e: React.FormEvent) => {
@@ -719,7 +721,7 @@ export function UserDashboardPage() {
             <Button
               type="button"
               variant="outline"
-              onClick={() => setIsAnnouncementDialogOpen(true)}
+              onClick={() => setIsAnnouncementDialogOpen((prev) => !prev)}
               className="flex items-center gap-2"
             >
               <Megaphone className="w-4 h-4" />
@@ -1518,15 +1520,25 @@ export function UserDashboardPage() {
                         {announcement.severity}
                       </Badge>
                     </div>
-                    {announcement.image_url && (
+                    {announcement.image_url &&
+                      !announcementImageErrors.includes(announcement.id) && (
                       <div className="mb-3 overflow-hidden rounded-lg border border-neutral-200 bg-white">
                         <img
                           src={announcement.image_url}
                           alt={announcement.title}
                           className="max-h-80 w-full object-contain"
+                          onError={() =>
+                            handleAnnouncementImageError(announcement.id)
+                          }
                         />
                       </div>
                     )}
+                    {announcement.image_url &&
+                      announcementImageErrors.includes(announcement.id) && (
+                        <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+                          Announcement image is unavailable.
+                        </div>
+                      )}
                     <p className="whitespace-pre-wrap text-sm text-neutral-700">
                       {announcement.message}
                     </p>
