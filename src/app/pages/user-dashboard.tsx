@@ -259,6 +259,16 @@ export function UserDashboardPage() {
     loadAllData();
   }, [user]);
 
+  useEffect(() => {
+    if (!isAnnouncementDialogOpen || announcements.length <= 1) return;
+
+    const timer = setInterval(() => {
+      setCurrentAnnouncementIndex((prev) => (prev + 1) % announcements.length);
+    }, 7000);
+
+    return () => clearInterval(timer);
+  }, [announcements.length, isAnnouncementDialogOpen]);
+
   const loadTodayShiftRequirementAndLogs = async (userId: string) => {
     try {
       const requirement = await attendanceService.getTodayShiftRequirement(userId);

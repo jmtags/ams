@@ -97,7 +97,7 @@ export const announcementService = {
     const { data, error } = await activeAnnouncementFilter(
       supabase.from("announcements").select("*")
     )
-      .order("severity", { ascending: false })
+      .order("starts_at", { ascending: false, nullsFirst: false })
       .order("created_at", { ascending: false });
 
     if (error) throw error;
@@ -108,6 +108,7 @@ export const announcementService = {
     const { data, error } = await supabase
       .from("announcements")
       .select("*")
+      .order("starts_at", { ascending: false, nullsFirst: false })
       .order("created_at", { ascending: false });
 
     if (error) throw error;
