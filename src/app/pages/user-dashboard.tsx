@@ -13,6 +13,8 @@ import {
   Wallet,
   Receipt,
   Megaphone,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { Link } from 'react-router';
 import { useAuth } from '../hooks/useAuth';
@@ -105,6 +107,8 @@ type TodayShiftRequirement = {
   minActivityEntries: number;
   shiftName: string | null;
 } | null;
+
+const ANNOUNCEMENT_PREVIEW_LENGTH = 420;
 
 const initialLeaveForm: LeaveFormState = {
   leave_type_id: '',
@@ -240,6 +244,8 @@ export function UserDashboardPage() {
   const [isAnnouncementDialogOpen, setIsAnnouncementDialogOpen] = useState(false);
   const [announcementPopupEnabled, setAnnouncementPopupEnabled] = useState(true);
   const [announcementImageErrors, setAnnouncementImageErrors] = useState<string[]>([]);
+  const [currentAnnouncementIndex, setCurrentAnnouncementIndex] = useState(0);
+  const [expandedAnnouncementIds, setExpandedAnnouncementIds] = useState<string[]>([]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -328,6 +334,8 @@ export function UserDashboardPage() {
       setAnnouncementPopupEnabled(config.showAnnouncementPopup);
       setAnnouncements(activeAnnouncements);
       setAnnouncementImageErrors([]);
+      setCurrentAnnouncementIndex(0);
+      setExpandedAnnouncementIds([]);
 
       if (config.showAnnouncementPopup && activeAnnouncements.length > 0) {
         setIsAnnouncementDialogOpen(true);
@@ -473,6 +481,28 @@ export function UserDashboardPage() {
   const handleAnnouncementImageError = (announcementId: string) => {
     setAnnouncementImageErrors((prev) =>
       prev.includes(announcementId) ? prev : [...prev, announcementId]
+    );
+  };
+
+  const goToPreviousAnnouncement = () => {
+    setCurrentAnnouncementIndex((prev) =>
+      announcements.length === 0
+        ? 0
+        : (prev - 1 + announcements.length) % announcements.length
+    );
+  };
+
+  const goToNextAnnouncement = () => {
+    setCurrentAnnouncementIndex((prev) =>
+      announcements.length === 0 ? 0 : (prev + 1) % announcements.length
+    );
+  };
+
+  const toggleFullAnnouncement = (announcementId: string) => {
+    setExpandedAnnouncementIds((prev) =>
+      prev.includes(announcementId)
+        ? prev.filter((id) => id !== announcementId)
+        : [...prev, announcementId]
     );
   };
 
@@ -705,6 +735,17 @@ export function UserDashboardPage() {
     !todayAttendance?.clockOut;
 
   const latestPayrollRecord = payrollRecords[0] ?? null;
+  const currentAnnouncement =
+    announcements[currentAnnouncementIndex] ?? announcements[0] ?? null;
+  const isCurrentAnnouncementExpanded = currentAnnouncement
+    ? expandedAnnouncementIds.includes(currentAnnouncement.id)
+    : false;
+  const isCurrentAnnouncementLong =
+    (currentAnnouncement?.message.length ?? 0) > ANNOUNCEMENT_PREVIEW_LENGTH;
+  const currentAnnouncementMessage =
+    currentAnnouncement && isCurrentAnnouncementLong && !isCurrentAnnouncementExpanded
+      ? `${currentAnnouncement.message.slice(0, ANNOUNCEMENT_PREVIEW_LENGTH).trim()}...`
+      : currentAnnouncement?.message ?? "";
 
   return (
     <UserLayout>
@@ -1498,47 +1539,51 @@ export function UserDashboardPage() {
             </DialogHeader>
 
             <DialogBody className="min-h-0 overflow-y-auto">
-              <div className="space-y-3">
-                {announcements.map((announcement) => (
-                  <div
-                    key={announcement.id}
-                    className="rounded-lg border border-neutral-200 bg-neutral-50 p-4"
-                  >
-                    <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                      <h3 className="text-base font-medium text-neutral-900">
-                        {announcement.title}
-                      </h3>
+              {currentAnnouncement && (
+                <div className="space-y-4">
+                  <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-4">
+                    <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="mb-1 text-xs text-neutral-500">
+                          {currentAnnouncementIndex + 1} of {announcements.length}
+                        </p>
+                        <h3 className="text-base font-medium text-neutral-900">
+                          {currentAnnouncement.title}
+                        </h3>
+                      </div>
                       <Badge
                         variant={
-                          announcement.severity === 'urgent'
+                          currentAnnouncement.severity === 'urgent'
                             ? 'danger'
-                            : announcement.severity === 'warning'
+                            : currentAnnouncement.severity === 'warning'
                             ? 'warning'
                             : 'default'
                         }
                       >
-                        {announcement.severity}
+                        {currentAnnouncement.severity}
                       </Badge>
                     </div>
-                    {announcement.image_url &&
-                      !announcementImageErrors.includes(announcement.id) && (
-                      <div className="mb-3 overflow-hidden rounded-lg border border-neutral-200 bg-white">
-                        <img
-                          src={announcement.image_url}
-                          alt={announcement.title}
-                          className="max-h-80 w-full object-contain"
-                          onError={() =>
-                            handleAnnouncementImageError(announcement.id)
-                          }
-                        />
-                      </div>
-                    )}
-                    {announcement.image_url &&
-                      announcementImageErrors.includes(announcement.id) && (
+
+                    {currentAnnouncement.image_url &&
+                      !announcementImageErrors.includes(currentAnnouncement.id) && (
+                        <div className="mb-3 overflow-hidden rounded-lg border border-neutral-200 bg-white">
+                          <img
+                            src={currentAnnouncement.image_url}
+                            alt={currentAnnouncement.title}
+                            className="max-h-80 w-full object-contain"
+                            onError={() =>
+                              handleAnnouncementImageError(currentAnnouncement.id)
+                            }
+                          />
+                        </div>
+                      )}
+
+                    {currentAnnouncement.image_url &&
+                      announcementImageErrors.includes(currentAnnouncement.id) && (
                         <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
                           <div>Announcement image is unavailable.</div>
                           <a
-                            href={announcement.image_url}
+                            href={currentAnnouncement.image_url}
                             target="_blank"
                             rel="noreferrer"
                             className="mt-1 inline-block text-amber-800 underline"
@@ -1547,12 +1592,71 @@ export function UserDashboardPage() {
                           </a>
                         </div>
                       )}
+
                     <p className="whitespace-pre-wrap text-sm text-neutral-700">
-                      {announcement.message}
+                      {currentAnnouncementMessage}
                     </p>
+
+                    {isCurrentAnnouncementLong && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="mt-3 px-0 text-neutral-900"
+                        onClick={() =>
+                          toggleFullAnnouncement(currentAnnouncement.id)
+                        }
+                      >
+                        {isCurrentAnnouncementExpanded
+                          ? "Show less"
+                          : "Read full announcement"}
+                      </Button>
+                    )}
                   </div>
-                ))}
-              </div>
+
+                  {announcements.length > 1 && (
+                    <div className="flex items-center justify-between gap-3">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={goToPreviousAnnouncement}
+                        className="flex items-center gap-1"
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                        Previous
+                      </Button>
+
+                      <div className="flex items-center gap-1">
+                        {announcements.map((announcement, index) => (
+                          <button
+                            key={announcement.id}
+                            type="button"
+                            aria-label={`Show announcement ${index + 1}`}
+                            onClick={() => setCurrentAnnouncementIndex(index)}
+                            className={`h-2.5 w-2.5 rounded-full transition-colors ${
+                              index === currentAnnouncementIndex
+                                ? 'bg-neutral-900'
+                                : 'bg-neutral-300'
+                            }`}
+                          />
+                        ))}
+                      </div>
+
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={goToNextAnnouncement}
+                        className="flex items-center gap-1"
+                      >
+                        Next
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )}
             </DialogBody>
 
             <DialogFooter>
