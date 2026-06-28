@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { Search, Eye } from "lucide-react";
+import { saveAs } from "file-saver";
+import { Download, Eye, Search } from "lucide-react";
+import * as XLSX from "xlsx";
 import { AdminLayout } from "../layouts/admin-layout";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -141,6 +143,58 @@ export function AttendanceActivityLogManagementPage() {
     setIsDialogOpen(false);
   };
 
+  const handleExport = () => {
+    const exportData = filteredRows.flatMap((row) =>
+      row.activities.map((activity, index) => ({
+        Date: row.date,
+        Employee: row.user_name,
+        Email: row.user_email ?? "",
+        Department: row.department ?? "",
+        Shift: row.shift_name ?? "",
+        "Clock In": row.clock_in ? formatTime(row.clock_in) : "",
+        "Clock Out": row.clock_out ? formatTime(row.clock_out) : "",
+        Status: row.status ?? "",
+        "Activity Number": index + 1,
+        Activity: activity.activity_text,
+        "Hours Spent": activity.hours_spent ?? "",
+        "Output / Note": activity.output_note ?? "",
+        "Submitted At": new Date(activity.created_at).toLocaleString(),
+      }))
+    );
+
+    const worksheet = XLSX.utils.json_to_sheet(exportData);
+    worksheet["!cols"] = [
+      { wch: 12 },
+      { wch: 24 },
+      { wch: 28 },
+      { wch: 20 },
+      { wch: 20 },
+      { wch: 12 },
+      { wch: 12 },
+      { wch: 14 },
+      { wch: 16 },
+      { wch: 50 },
+      { wch: 14 },
+      { wch: 50 },
+      { wch: 22 },
+    ];
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Activity Logs");
+
+    const excelBuffer = XLSX.write(workbook, {
+      bookType: "xlsx",
+      type: "array",
+    });
+
+    const blob = new Blob([excelBuffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8",
+    });
+
+    const fileName = `activity-logs-${new Date().toISOString().slice(0, 10)}.xlsx`;
+    saveAs(blob, fileName);
+  };
+
   const totalActivities = useMemo(() => {
     return filteredRows.reduce((sum, row) => sum + row.activities.length, 0);
   }, [filteredRows]);
@@ -230,6 +284,14 @@ export function AttendanceActivityLogManagementPage() {
               </Button>
               <Button onClick={handleApplyFilters}>
                 Apply Filters
+              </Button>
+              <Button
+                variant="outline"
+                onClick={handleExport}
+                disabled={isLoading || filteredRows.length === 0}
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Export Excel
               </Button>
             </div>
           </CardHeader>
