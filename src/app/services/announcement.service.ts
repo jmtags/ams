@@ -68,30 +68,54 @@ const uploadAnnouncementImage = async (file: File): Promise<string> => {
   return data.publicUrl;
 };
 
+const fetchMainContent = async (url: string, anonKey: string) => {
+  const publicHeaders: Record<string, string> = {
+    Accept: "application/json",
+  };
+  const authenticatedHeaders = anonKey
+    ? {
+        ...publicHeaders,
+        apikey: anonKey,
+        Authorization: `Bearer ${anonKey}`,
+      }
+    : publicHeaders;
+
+  let response = await fetch(url, { headers: authenticatedHeaders });
+
+  if (!response.ok && anonKey) {
+    response = await fetch(url, { headers: publicHeaders });
+  }
+
+  if (!response.ok) {
+    let detail = "";
+    try {
+      const payload = await response.json();
+      detail = String(payload?.error || payload?.message || "").trim();
+    } catch {
+      // Use the HTTP status when the gateway returns a non-JSON response.
+    }
+
+    throw new Error(
+      `Corporate HR content API returned ${response.status}${
+        detail ? `: ${detail}` : ""
+      }. Check the main API URL and deploy the public content Edge Function.`
+    );
+  }
+
+  return response.json();
+};
+
 export const announcementService = {
   async getPublicAnnouncements(): Promise<Announcement[]> {
     const config = await appSettingsService.getInstanceConfig();
 
     if (config.mode === "sub" && config.mainAnnouncementApiUrl.trim()) {
-      const headers: Record<string, string> = { Accept: "application/json" };
       const anonKey = config.mainAnnouncementAnonKey.trim();
-
-      if (anonKey) {
-        headers.apikey = anonKey;
-        headers.Authorization = `Bearer ${anonKey}`;
-      }
-
-      const response = await fetch(config.mainAnnouncementApiUrl.trim(), {
-        headers,
-      });
-
-      if (!response.ok) {
-        throw new Error(
-          "Failed to load announcements from main instance. Check the main API URL, anon key, or JWT verification setting."
-        );
-      }
-
-      return normalizeRemoteAnnouncements(await response.json());
+      const payload = await fetchMainContent(
+        config.mainAnnouncementApiUrl.trim(),
+        anonKey
+      );
+      return normalizeRemoteAnnouncements(payload);
     }
 
     const { data, error } = await activeAnnouncementFilter(

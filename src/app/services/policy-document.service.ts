@@ -84,30 +84,62 @@ const removeStoredFile = async (storagePath?: string | null) => {
   await supabase.storage.from(POLICY_BUCKET).remove([storagePath]);
 };
 
+const fetchMainContent = async (url: string, anonKey: string) => {
+  const publicHeaders: Record<string, string> = {
+    Accept: "application/json",
+  };
+  const authenticatedHeaders = anonKey
+    ? {
+        ...publicHeaders,
+        apikey: anonKey,
+        Authorization: `Bearer ${anonKey}`,
+      }
+    : publicHeaders;
+
+  let response = await fetch(url, { headers: authenticatedHeaders });
+
+  // This Edge Function is intentionally public. A stale saved anon key can be
+  // rejected by the gateway, so retry without it before reporting an error.
+  if (!response.ok && anonKey) {
+    response = await fetch(url, { headers: publicHeaders });
+  }
+
+  if (!response.ok) {
+    let detail = "";
+    try {
+      const payload = await response.json();
+      detail = String(payload?.error || payload?.message || "").trim();
+    } catch {
+      // The status code below is enough when the gateway returns non-JSON.
+    }
+
+    throw new Error(
+      `Corporate HR content API returned ${response.status}${
+        detail ? `: ${detail}` : ""
+      }. Check the main API URL and deploy the public content Edge Function.`
+    );
+  }
+
+  return response.json();
+};
+
 export const policyDocumentService = {
   async getPublished(): Promise<PolicyDocument[]> {
     const config = await appSettingsService.getInstanceConfig();
 
-    if (config.mode === "sub" && config.mainAnnouncementApiUrl.trim()) {
-      const headers: Record<string, string> = { Accept: "application/json" };
-      const anonKey = config.mainAnnouncementAnonKey.trim();
-
-      if (anonKey) {
-        headers.apikey = anonKey;
-        headers.Authorization = `Bearer ${anonKey}`;
-      }
-
-      const response = await fetch(config.mainAnnouncementApiUrl.trim(), {
-        headers,
-      });
-
-      if (!response.ok) {
+    if (config.mode === "sub") {
+      const mainContentUrl = config.mainAnnouncementApiUrl.trim();
+      if (!mainContentUrl) {
         throw new Error(
-          "Failed to load policies from Corporate HR. Check the main instance API settings."
+          "The Main Content API URL is not configured. Ask an administrator to update Instance Settings."
         );
       }
 
-      return normalizeRemoteDocuments(await response.json());
+      const payload = await fetchMainContent(
+        mainContentUrl,
+        config.mainAnnouncementAnonKey.trim()
+      );
+      return normalizeRemoteDocuments(payload);
     }
 
     const { data, error } = await supabase
