@@ -323,6 +323,11 @@ export function AdminLayout({ children }: AdminLayoutProps) {
               to: "/admin/announcements",
               icon: <Megaphone className="h-4 w-4" />,
             },
+            {
+              label: "Policy Documents",
+              to: "/admin/policy-documents",
+              icon: <FileText className="h-4 w-4" />,
+            },
           ],
         },
         ...groups.slice(-1),

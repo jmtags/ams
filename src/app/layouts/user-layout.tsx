@@ -6,6 +6,7 @@ import {
   Wallet,
   CalendarClock,
   CalendarDays,
+  BookOpen,
   Menu,
   X,
   LogOut,
@@ -38,6 +39,11 @@ const navigation = [
     name: 'My Leave',
     href: '/my-leave',
     icon: CalendarDays,
+  },
+  {
+    name: 'Company Policies',
+    href: '/policies',
+    icon: BookOpen,
   },
   {
     name: 'Shift Change',

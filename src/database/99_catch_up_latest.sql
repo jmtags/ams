@@ -116,6 +116,71 @@ values ('announcement-images', 'announcement-images', true)
 on conflict (id) do update
 set public = true;
 
+create table if not exists public.policy_documents (
+  id uuid primary key default gen_random_uuid(),
+  title text not null,
+  description text,
+  category text,
+  file_url text not null,
+  file_name text not null,
+  file_size bigint,
+  storage_path text,
+  is_active boolean not null default true,
+  created_by uuid references public.users(id),
+  created_at timestamp with time zone not null default now(),
+  updated_at timestamp with time zone not null default now()
+);
+
+alter table public.policy_documents
+  add column if not exists title text,
+  add column if not exists description text,
+  add column if not exists category text,
+  add column if not exists file_url text,
+  add column if not exists file_name text,
+  add column if not exists file_size bigint,
+  add column if not exists storage_path text,
+  add column if not exists is_active boolean default true,
+  add column if not exists created_by uuid references public.users(id),
+  add column if not exists created_at timestamp with time zone default now(),
+  add column if not exists updated_at timestamp with time zone default now();
+
+update public.policy_documents
+set
+  title = coalesce(title, 'Policy document'),
+  file_url = coalesce(file_url, ''),
+  file_name = coalesce(file_name, 'document.pdf'),
+  is_active = coalesce(is_active, true),
+  created_at = coalesce(created_at, now()),
+  updated_at = coalesce(updated_at, now());
+
+alter table public.policy_documents
+  alter column title set not null,
+  alter column file_url set not null,
+  alter column file_name set not null,
+  alter column is_active set default true,
+  alter column is_active set not null,
+  alter column created_at set default now(),
+  alter column created_at set not null,
+  alter column updated_at set default now(),
+  alter column updated_at set not null;
+
+create index if not exists idx_policy_documents_active_updated
+on public.policy_documents(is_active, updated_at desc);
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'policy-documents',
+  'policy-documents',
+  true,
+  20971520,
+  array['application/pdf']::text[]
+)
+on conflict (id) do update
+set
+  public = true,
+  file_size_limit = 20971520,
+  allowed_mime_types = array['application/pdf']::text[];
+
 -- =========================================================
 -- Manual attendance + attendance adjustment requests
 -- =========================================================
@@ -767,6 +832,54 @@ create policy "Staff can delete announcement images"
 on storage.objects for delete to authenticated
 using (
   bucket_id = 'announcement-images'
+  and exists (select 1 from public.users u where u.id = auth.uid() and u.role in ('admin', 'hr', 'payroll'))
+);
+
+-- Corporate policy documents
+alter table public.policy_documents enable row level security;
+
+drop policy if exists "Authenticated users can view active policy documents" on public.policy_documents;
+drop policy if exists "Staff can manage policy documents" on public.policy_documents;
+drop policy if exists "Public can view policy PDFs" on storage.objects;
+drop policy if exists "Staff can upload policy PDFs" on storage.objects;
+drop policy if exists "Staff can update policy PDFs" on storage.objects;
+drop policy if exists "Staff can delete policy PDFs" on storage.objects;
+
+create policy "Authenticated users can view active policy documents"
+on public.policy_documents for select to authenticated
+using (is_active = true);
+
+create policy "Staff can manage policy documents"
+on public.policy_documents for all to authenticated
+using (exists (select 1 from public.users u where u.id = auth.uid() and u.role in ('admin', 'hr', 'payroll')))
+with check (exists (select 1 from public.users u where u.id = auth.uid() and u.role in ('admin', 'hr', 'payroll')));
+
+create policy "Public can view policy PDFs"
+on storage.objects for select to public
+using (bucket_id = 'policy-documents');
+
+create policy "Staff can upload policy PDFs"
+on storage.objects for insert to authenticated
+with check (
+  bucket_id = 'policy-documents'
+  and exists (select 1 from public.users u where u.id = auth.uid() and u.role in ('admin', 'hr', 'payroll'))
+);
+
+create policy "Staff can update policy PDFs"
+on storage.objects for update to authenticated
+using (
+  bucket_id = 'policy-documents'
+  and exists (select 1 from public.users u where u.id = auth.uid() and u.role in ('admin', 'hr', 'payroll'))
+)
+with check (
+  bucket_id = 'policy-documents'
+  and exists (select 1 from public.users u where u.id = auth.uid() and u.role in ('admin', 'hr', 'payroll'))
+);
+
+create policy "Staff can delete policy PDFs"
+on storage.objects for delete to authenticated
+using (
+  bucket_id = 'policy-documents'
   and exists (select 1 from public.users u where u.id = auth.uid() and u.role in ('admin', 'hr', 'payroll'))
 );
 

@@ -6,6 +6,7 @@ import { UserPayrollPage } from "./pages/user-payroll";
 import { UserPayslipDetailsPage } from "./pages/user-payslip-details";
 import { UserShiftChangeRequestsPage } from "./pages/user-shift-change-requests";
 import { UserLeavePage } from "./pages/user-leave";
+import { UserPolicyDocumentsPage } from "./pages/user-policy-documents";
 
 import { AdminDashboardPage } from "./pages/admin-dashboard";
 import { AdminReportsPage } from "./pages/admin-reports";
@@ -36,6 +37,7 @@ import { AdminRecurringDeductionsPage } from "./pages/admin-recurring-deductions
 import { AdminPayrollSettingsPage } from "./pages/admin-payroll-settings";
 import { AdminSettingsPage } from "./pages/admin-settings";
 import { AdminAnnouncementsPage } from "./pages/admin-announcements";
+import { AdminPolicyDocumentsPage } from "./pages/admin-policy-documents";
 
 import { ProtectedRoute } from "./components/protected-route";
 
@@ -95,6 +97,14 @@ export const router = createBrowserRouter([
     element: (
       <ProtectedRoute>
         <UserLeavePage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/policies",
+    element: (
+      <ProtectedRoute>
+        <UserPolicyDocumentsPage />
       </ProtectedRoute>
     ),
   },
@@ -301,6 +311,14 @@ export const router = createBrowserRouter([
     element: (
       <ProtectedRoute allowedRoles={["admin", "hr", "payroll"]}>
         <AdminAnnouncementsPage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/admin/policy-documents",
+    element: (
+      <ProtectedRoute allowedRoles={["admin", "hr", "payroll"]}>
+        <AdminPolicyDocumentsPage />
       </ProtectedRoute>
     ),
   },

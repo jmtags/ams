@@ -54,7 +54,7 @@ export function AdminSettingsPage() {
       setSuccess("");
 
       if (config.mode === "sub" && !config.mainAnnouncementApiUrl.trim()) {
-        throw new Error("Main announcement API URL is required for sub instances.");
+        throw new Error("Main content API URL is required for sub instances.");
       }
 
       const saved = await appSettingsService.saveInstanceConfig(config, user?.id);
@@ -73,7 +73,7 @@ export function AdminSettingsPage() {
         <div>
           <h1 className="text-neutral-900 mb-1">Settings</h1>
           <p className="text-neutral-600">
-            Configure this instance and shared announcement behavior.
+            Configure this instance and shared Corporate HR content.
           </p>
         </div>
 
@@ -96,7 +96,8 @@ export function AdminSettingsPage() {
               Instance Configuration
             </CardTitle>
             <CardDescription>
-              Main instances manage announcements. Sub instances read announcements from a main instance.
+              Main instances publish announcements and policy documents. Sub
+              instances read them from the main Corporate HR instance.
             </CardDescription>
           </CardHeader>
 
@@ -118,7 +119,7 @@ export function AdminSettingsPage() {
               </Select>
 
               <Input
-                label="Main Announcement API URL"
+                label="Main Content API URL"
                 value={config.mainAnnouncementApiUrl}
                 onChange={(event) =>
                   setConfig((prev) => ({

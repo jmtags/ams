@@ -39,16 +39,35 @@ serve(async (req) => {
       image_url: announcement.image_url || null,
     }));
 
-    return new Response(JSON.stringify({ announcements }), {
-      headers: {
-        ...corsHeaders,
-        "Cache-Control": "no-store",
-      },
-    });
+    const { data: policyDocuments, error: policyError } = await supabaseAdmin
+      .from("policy_documents")
+      .select(
+        "id, title, description, category, file_url, file_name, file_size, is_active, created_at, updated_at"
+      )
+      .eq("is_active", true)
+      .order("updated_at", { ascending: false });
+
+    if (policyError) {
+      console.error("Failed to load policy documents:", policyError.message);
+    }
+
+    return new Response(
+      JSON.stringify({
+        announcements,
+        policy_documents: policyError ? [] : policyDocuments ?? [],
+      }),
+      {
+        headers: {
+          ...corsHeaders,
+          "Cache-Control": "no-store",
+        },
+      }
+    );
   } catch (err: any) {
     return new Response(
       JSON.stringify({
         announcements: [],
+        policy_documents: [],
         error: err.message ?? "Failed to load announcements.",
       }),
       { status: 400, headers: corsHeaders }
