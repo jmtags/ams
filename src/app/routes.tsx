@@ -5,6 +5,7 @@ import { ProfilePage } from "./pages/profile";
 import { UserPayrollPage } from "./pages/user-payroll";
 import { UserPayslipDetailsPage } from "./pages/user-payslip-details";
 import { UserShiftChangeRequestsPage } from "./pages/user-shift-change-requests";
+import { UserLeavePage } from "./pages/user-leave";
 
 import { AdminDashboardPage } from "./pages/admin-dashboard";
 import { AdminReportsPage } from "./pages/admin-reports";
@@ -86,6 +87,14 @@ export const router = createBrowserRouter([
     element: (
       <ProtectedRoute>
         <UserShiftChangeRequestsPage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/my-leave",
+    element: (
+      <ProtectedRoute>
+        <UserLeavePage />
       </ProtectedRoute>
     ),
   },

@@ -5,6 +5,7 @@ import {
   User,
   Wallet,
   CalendarClock,
+  CalendarDays,
   Menu,
   X,
   LogOut,
@@ -32,6 +33,11 @@ const navigation = [
     name: 'My Payroll',
     href: '/my-payroll',
     icon: Wallet,
+  },
+  {
+    name: 'My Leave',
+    href: '/my-leave',
+    icon: CalendarDays,
   },
   {
     name: 'Shift Change',
@@ -73,6 +79,10 @@ export function UserLayout({ children }: UserLayoutProps) {
 
     return location.pathname === href;
   };
+
+  const currentPage =
+    navigation.find((item) => isActiveRoute(item.href))?.name ??
+    'Employee Portal';
 
   return (
     <div className="min-h-screen bg-neutral-50 flex">
@@ -169,7 +179,7 @@ export function UserLayout({ children }: UserLayoutProps) {
 
             <div>
               <h2 className="text-base font-semibold text-neutral-900">
-                Employee Dashboard
+                {currentPage}
               </h2>
               <p className="text-xs text-neutral-500">
                 Manage your attendance, leave, and payroll
