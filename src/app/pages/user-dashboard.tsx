@@ -1,19 +1,19 @@
 import { useEffect, useState } from 'react';
 import {
   Clock,
+  AlarmClock,
+  CalendarCheck2,
+  ListChecks,
   LogIn,
   LogOut as LogOutIcon,
   FileEdit,
   Plus,
   Trash2,
   ClipboardList,
-  Wallet,
-  Receipt,
   Megaphone,
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
-import { Link } from 'react-router';
 import { useAuth } from '../hooks/useAuth';
 import { UserLayout } from '../layouts/user-layout';
 import { Button } from '../components/ui/button';
@@ -51,9 +51,7 @@ import {
   type Announcement,
 } from "../services/announcement.service";
 import { appSettingsService } from "../services/app-settings.service";
-import { supabase } from "../lib/supabase";
 import type { AttendanceRecord, Location } from '../lib/types';
-import type { PayrollRecord } from '../services/payroll.service';
 import { formatDate, formatTime, getGreeting } from '../lib/utils';
 
 type PunchAlterationFormState = {
@@ -103,65 +101,6 @@ function combineDateAndTime(date: string, time: string) {
   return `${date}T${time}:00+08:00`;
 }
 
-const currency = (value: number) =>
-  new Intl.NumberFormat('en-PH', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(Number(value || 0));
-
-const getPayrollStatusBadgeVariant = (status: string) => {
-  switch (status) {
-    case 'draft':
-      return 'outline';
-    case 'computed':
-      return 'secondary';
-    case 'reviewed':
-      return 'secondary';
-    case 'finalized':
-      return 'default';
-    case 'released':
-      return 'default';
-    default:
-      return 'outline';
-  }
-};
-
-const mapPayrollRecord = (row: any): PayrollRecord => ({
-  ...row,
-  basic_rate: Number(row.basic_rate ?? 0),
-  daily_rate: Number(row.daily_rate ?? 0),
-  hourly_rate: Number(row.hourly_rate ?? 0),
-  total_work_days: Number(row.total_work_days ?? 0),
-  total_paid_leave_days: Number(row.total_paid_leave_days ?? 0),
-  total_unpaid_leave_days: Number(row.total_unpaid_leave_days ?? 0),
-  total_absent_days: Number(row.total_absent_days ?? 0),
-  total_late_minutes: Number(row.total_late_minutes ?? 0),
-  total_overtime_minutes: Number(row.total_overtime_minutes ?? 0),
-  basic_pay: Number(row.basic_pay ?? 0),
-  leave_pay: Number(row.leave_pay ?? 0),
-  overtime_pay: Number(row.overtime_pay ?? 0),
-  holiday_pay: Number(row.holiday_pay ?? 0),
-  restday_pay: Number(row.restday_pay ?? 0),
-  allowance_pay: Number(row.allowance_pay ?? 0),
-  gross_pay: Number(row.gross_pay ?? 0),
-  late_deduction: Number(row.late_deduction ?? 0),
-  undertime_deduction: Number(row.undertime_deduction ?? 0),
-  absent_deduction: Number(row.absent_deduction ?? 0),
-  sss_deduction: Number(row.sss_deduction ?? 0),
-  pagibig_deduction: Number(row.pagibig_deduction ?? 0),
-  philhealth_deduction: Number(row.philhealth_deduction ?? 0),
-  tax_deduction: Number(row.tax_deduction ?? 0),
-  other_deductions: Number(row.other_deductions ?? 0),
-  total_deductions: Number(row.total_deductions ?? 0),
-  net_pay: Number(row.net_pay ?? 0),
-  user_name: row.users?.name ?? '',
-  user_email: row.users?.email ?? null,
-  payroll_period_name: row.payroll_periods?.name ?? '',
-  payroll_period_date_from: row.payroll_periods?.date_from ?? null,
-  payroll_period_date_to: row.payroll_periods?.date_to ?? null,
-  payroll_period_pay_date: row.payroll_periods?.pay_date ?? null,
-});
-
 export function UserDashboardPage() {
   const { user } = useAuth();
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -169,8 +108,6 @@ export function UserDashboardPage() {
   const [attendanceHistory, setAttendanceHistory] = useState<AttendanceRecord[]>([]);
   const [todayAttendance, setTodayAttendance] = useState<AttendanceRecord | null>(null);
   const [locations, setLocations] = useState<Location[]>([]);
-
-  const [payrollRecords, setPayrollRecords] = useState<PayrollRecord[]>([]);
 
   const [isLoading, setIsLoading] = useState(false);
 
@@ -254,34 +191,6 @@ export function UserDashboardPage() {
     }
   };
 
-  const loadMyPayrollRecords = async (userId: string) => {
-    const { data, error } = await supabase
-      .from("payroll_records")
-      .select(`
-        *,
-        users (
-          id,
-          name,
-          email
-        ),
-        payroll_periods (
-          id,
-          name,
-          date_from,
-          date_to,
-          pay_date
-        )
-      `)
-      .eq("user_id", userId)
-      .in("status", ["finalized", "released"])
-      .order("created_at", { ascending: false })
-      .limit(5);
-
-    if (error) throw error;
-
-    setPayrollRecords((data ?? []).map(mapPayrollRecord));
-  };
-
   const loadAnnouncements = async () => {
     if (!user?.id) return;
 
@@ -324,7 +233,6 @@ export function UserDashboardPage() {
 
       await Promise.all([
         loadTodayShiftRequirementAndLogs(user.id),
-        loadMyPayrollRecords(user.id),
         loadAnnouncements(),
       ]);
 
@@ -589,7 +497,6 @@ export function UserDashboardPage() {
     !!todayAttendance?.clockIn &&
     !todayAttendance?.clockOut;
 
-  const latestPayrollRecord = payrollRecords[0] ?? null;
   const currentAnnouncement =
     announcements[currentAnnouncementIndex] ?? announcements[0] ?? null;
   const isCurrentAnnouncementExpanded = currentAnnouncement
@@ -601,139 +508,219 @@ export function UserDashboardPage() {
     currentAnnouncement && isCurrentAnnouncementLong && !isCurrentAnnouncementExpanded
       ? `${currentAnnouncement.message.slice(0, ANNOUNCEMENT_PREVIEW_LENGTH).trim()}...`
       : currentAnnouncement?.message ?? "";
+  const presentDays = attendanceHistory.filter(
+    (record) => record.status === "present"
+  ).length;
+  const lateDays = attendanceHistory.filter(
+    (record) => record.status === "late"
+  ).length;
+  const attendanceState = todayAttendance?.clockOut
+    ? "Shift completed"
+    : todayAttendance?.clockIn
+    ? "Currently clocked in"
+    : "Ready to clock in";
 
   return (
     <UserLayout>
-      <div className="space-y-6">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h1 className="text-neutral-900 mb-1">
-              {getGreeting()}, {user?.name}
-            </h1>
-            <p className="text-neutral-600">Welcome back to your dashboard</p>
-          </div>
+      <div className="mx-auto w-full max-w-7xl space-y-5 sm:space-y-6">
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-neutral-950 via-neutral-900 to-slate-800 px-5 py-6 text-white shadow-xl shadow-neutral-900/10 sm:px-8 sm:py-8">
+          <div className="pointer-events-none absolute -right-16 -top-24 h-64 w-64 rounded-full bg-white/10 blur-3xl" />
+          <div className="pointer-events-none absolute -bottom-28 left-1/3 h-56 w-56 rounded-full bg-blue-400/10 blur-3xl" />
+          <div className="relative flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs text-neutral-200 backdrop-blur">
+                <span
+                  className={`h-2 w-2 rounded-full ${
+                    todayAttendance?.clockIn && !todayAttendance?.clockOut
+                      ? "bg-emerald-400"
+                      : "bg-neutral-400"
+                  }`}
+                />
+                {attendanceState}
+              </div>
+              <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+                {getGreeting()}, {user?.name?.split(" ")[0] || "there"}
+              </h1>
+              <p className="mt-2 max-w-xl text-sm text-neutral-300 sm:text-base">
+                Here is your attendance overview for today.
+              </p>
+            </div>
 
-          {announcementPopupEnabled && announcements.length > 0 && (
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setIsAnnouncementDialogOpen((prev) => !prev)}
-              className="flex items-center gap-2"
-            >
-              <Megaphone className="w-4 h-4" />
-              Announcements
-            </Button>
-          )}
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="rounded-xl border border-white/10 bg-white/10 px-4 py-2.5 backdrop-blur">
+                <p className="text-xs text-neutral-400">Today</p>
+                <p className="mt-0.5 text-sm font-medium">
+                  {currentTime.toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                  })}
+                </p>
+              </div>
+              {announcementPopupEnabled && announcements.length > 0 && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsAnnouncementDialogOpen((prev) => !prev)}
+                  className="border-white/20 bg-white/10 text-white hover:bg-white/20"
+                >
+                  <Megaphone className="mr-2 w-4 h-4" />
+                  Announcements
+                  <span className="ml-2 rounded-full bg-white px-1.5 py-0.5 text-[10px] font-semibold text-neutral-900">
+                    {announcements.length}
+                  </span>
+                </Button>
+              )}
+            </div>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <Card className="lg:col-span-2">
-            <CardHeader>
-              <CardTitle>Clock In / Out</CardTitle>
-              <CardDescription>Record your attendance for today</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-6">
-                <div className="flex items-center justify-center py-8">
-                  <div className="text-center">
-                    <Clock className="w-12 h-12 text-neutral-400 mx-auto mb-4" />
-                    <div className="text-4xl text-neutral-900 mb-2">
-                      {currentTime.toLocaleTimeString('en-US', {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                        second: '2-digit',
-                        hour12: true,
-                      })}
-                    </div>
-                    <div className="text-sm text-neutral-600">
-                      {currentTime.toLocaleDateString('en-US', {
-                        weekday: 'long',
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric',
-                      })}
-                    </div>
-                  </div>
+        <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1.65fr)_minmax(280px,0.65fr)]">
+          <Card className="overflow-hidden rounded-2xl border-neutral-200/80 shadow-sm">
+            <CardHeader className="border-b border-neutral-100 p-5 sm:p-6">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <CardTitle className="text-lg font-semibold">
+                    Today&apos;s Attendance
+                  </CardTitle>
+                  <CardDescription>Record and review your workday</CardDescription>
                 </div>
-
-                {error && (
-                  <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
-                    {error}
-                  </div>
-                )}
-
-                <div className="flex gap-4">
-                  <Button
-                    onClick={handleClockIn}
-                    disabled={isLoading || todayAttendance?.clockIn !== undefined}
-                    className="flex-1 flex items-center justify-center gap-2"
-                  >
-                    <LogIn className="w-4 h-4" />
-                    Clock In
-                  </Button>
-                  <Button
-                    onClick={handleClockOut}
-                    disabled={isLoading || !todayAttendance?.clockIn || todayAttendance?.clockOut !== null}
-                    variant="secondary"
-                    className="flex-1 flex items-center justify-center gap-2"
-                  >
-                    <LogOutIcon className="w-4 h-4" />
-                    Clock Out
-                  </Button>
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-neutral-100">
+                  <Clock className="h-5 w-5 text-neutral-700" />
                 </div>
-
-                {todayAttendance && (
-                  <div className="bg-neutral-50 rounded-lg p-4 space-y-2">
-                    <p className="text-sm text-neutral-600">Today's Status</p>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <p className="text-xs text-neutral-500 mb-1">Clock In</p>
-                        <p className="text-sm text-neutral-900">{formatTime(todayAttendance.clockIn)}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-neutral-500 mb-1">Clock Out</p>
-                        <p className="text-sm text-neutral-900">
-                          {todayAttendance.clockOut ? formatTime(todayAttendance.clockOut) : 'Not yet'}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {requiresActivityLogs && (
-                  <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                    This shift requires at least{' '}
-                    <strong>{todayShiftRequirement?.minActivityEntries || 1}</strong>{' '}
-                    activity log(s) before clock out.
-                  </div>
-                )}
               </div>
+            </CardHeader>
+            <CardContent className="p-5 sm:p-6">
+              <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(260px,0.8fr)] lg:items-center">
+                <div className="rounded-2xl bg-neutral-50 px-5 py-7 text-center sm:px-8">
+                  <p className="text-xs font-medium uppercase tracking-[0.18em] text-neutral-500">
+                    Local time
+                  </p>
+                  <div className="mt-2 text-4xl font-semibold tracking-tight text-neutral-950 sm:text-5xl">
+                    {currentTime.toLocaleTimeString("en-US", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      hour12: true,
+                    })}
+                  </div>
+                  <div className="mt-2 text-sm text-neutral-500">
+                    {currentTime.toLocaleDateString("en-US", {
+                      weekday: "long",
+                      month: "long",
+                      day: "numeric",
+                    })}
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="rounded-xl border border-neutral-200 p-4">
+                      <p className="text-xs text-neutral-500">Clock in</p>
+                      <p className="mt-1 text-lg font-semibold text-neutral-900">
+                        {todayAttendance?.clockIn
+                          ? formatTime(todayAttendance.clockIn)
+                          : "--:--"}
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-neutral-200 p-4">
+                      <p className="text-xs text-neutral-500">Clock out</p>
+                      <p className="mt-1 text-lg font-semibold text-neutral-900">
+                        {todayAttendance?.clockOut
+                          ? formatTime(todayAttendance.clockOut)
+                          : "--:--"}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <Button
+                      size="lg"
+                      onClick={handleClockIn}
+                      disabled={isLoading || todayAttendance?.clockIn !== undefined}
+                      className="w-full"
+                    >
+                      <LogIn className="mr-2 h-4 w-4" />
+                      Clock In
+                    </Button>
+                    <Button
+                      size="lg"
+                      onClick={handleClockOut}
+                      disabled={
+                        isLoading ||
+                        !todayAttendance?.clockIn ||
+                        todayAttendance?.clockOut !== null
+                      }
+                      variant="secondary"
+                      className="w-full"
+                    >
+                      <LogOutIcon className="mr-2 h-4 w-4" />
+                      Clock Out
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              {error && (
+                <div className="mt-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {error}
+                </div>
+              )}
+
+              {requiresActivityLogs && (
+                <div className="mt-5 flex gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                  <ClipboardList className="mt-0.5 h-4 w-4 shrink-0" />
+                  <span>
+                    Add at least{" "}
+                    <strong>
+                      {todayShiftRequirement?.minActivityEntries || 1}
+                    </strong>{" "}
+                    activity log(s) before clocking out.
+                  </span>
+                </div>
+              )}
             </CardContent>
           </Card>
 
-          <div className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Quick Stats</CardTitle>
-                <CardDescription>Your attendance overview</CardDescription>
+          <div className="space-y-5">
+            <Card className="rounded-2xl border-neutral-200/80 shadow-sm">
+              <CardHeader className="p-5 pb-3 sm:p-6 sm:pb-3">
+                <CardTitle className="text-lg font-semibold">
+                  Recent Overview
+                </CardTitle>
+                <CardDescription>Based on your latest records</CardDescription>
               </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="bg-neutral-50 rounded-lg p-4">
-                    <p className="text-sm text-neutral-600 mb-1">Present Days</p>
-                    <p className="text-2xl text-neutral-900">
-                      {attendanceHistory.filter((r) => r.status === 'present').length}
+              <CardContent className="space-y-3 p-5 pt-2 sm:p-6 sm:pt-2">
+                <div className="flex items-center gap-4 rounded-xl bg-emerald-50/70 p-4">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
+                    <CalendarCheck2 className="h-5 w-5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm text-neutral-600">Present days</p>
+                    <p className="text-2xl font-semibold text-neutral-950">
+                      {presentDays}
                     </p>
                   </div>
-                  <div className="bg-neutral-50 rounded-lg p-4">
-                    <p className="text-sm text-neutral-600 mb-1">Late Days</p>
-                    <p className="text-2xl text-neutral-900">
-                      {attendanceHistory.filter((r) => r.status === 'late').length}
+                </div>
+                <div className="flex items-center gap-4 rounded-xl bg-amber-50/70 p-4">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
+                    <AlarmClock className="h-5 w-5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm text-neutral-600">Late days</p>
+                    <p className="text-2xl font-semibold text-neutral-950">
+                      {lateDays}
                     </p>
                   </div>
-                  <div className="bg-neutral-50 rounded-lg p-4">
-                    <p className="text-sm text-neutral-600 mb-1">Total Records</p>
-                    <p className="text-2xl text-neutral-900">{attendanceHistory.length}</p>
+                </div>
+                <div className="flex items-center gap-4 rounded-xl bg-neutral-100/80 p-4">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-neutral-700 shadow-sm">
+                    <ListChecks className="h-5 w-5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm text-neutral-600">Total records</p>
+                    <p className="text-2xl font-semibold text-neutral-950">
+                      {attendanceHistory.length}
+                    </p>
                   </div>
                 </div>
               </CardContent>
@@ -856,10 +843,12 @@ export function UserDashboardPage() {
         )} */}
 
         {requiresActivityLogs && (
-          <Card>
-            <CardHeader>
+          <Card className="overflow-hidden rounded-2xl border-neutral-200/80 shadow-sm">
+            <CardHeader className="border-b border-neutral-100 p-5 sm:p-6">
               <CardTitle className="flex items-center gap-2">
-                <ClipboardList className="w-5 h-5" />
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-50 text-amber-700">
+                  <ClipboardList className="h-4 w-4" />
+                </span>
                 Daily Activity Log
               </CardTitle>
               <CardDescription>
@@ -869,7 +858,7 @@ export function UserDashboardPage() {
                   : ''}
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-5 p-5 sm:p-6">
               {(activityLogError || activityLogSuccess) && (
                 <div className="space-y-2">
                   {activityLogError && (
@@ -885,16 +874,19 @@ export function UserDashboardPage() {
                 </div>
               )}
 
-              <div className="text-sm text-neutral-600">
-                Saved activity logs: <strong>{savedActivityLogCount}</strong> / minimum required:{' '}
-                <strong>{todayShiftRequirement?.minActivityEntries || 1}</strong>
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-neutral-50 px-4 py-3 text-sm text-neutral-600">
+                <span>Completion progress</span>
+                <span className="font-medium text-neutral-900">
+                  {savedActivityLogCount} of{" "}
+                  {todayShiftRequirement?.minActivityEntries || 1} required
+                </span>
               </div>
 
               <div className="space-y-4">
                 {activityLogs.map((row, index) => (
                   <div
                     key={index}
-                    className="rounded-lg border border-neutral-200 p-4 bg-neutral-50 space-y-3"
+                    className="space-y-4 rounded-xl border border-neutral-200 bg-white p-4 sm:p-5"
                   >
                     <div className="flex items-center justify-between">
                       <div className="text-sm font-medium text-neutral-900">
@@ -921,7 +913,7 @@ export function UserDashboardPage() {
                           updateActivityLogRow(index, "activity_text", e.target.value)
                         }
                         rows={3}
-                        className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm"
+                        className="w-full rounded-xl border border-neutral-300 px-3 py-2.5 text-sm outline-none transition focus:border-neutral-500 focus:ring-2 focus:ring-neutral-200"
                         placeholder="Describe the task or work completed"
                       />
                     </div>
@@ -939,7 +931,7 @@ export function UserDashboardPage() {
                           onChange={(e) =>
                             updateActivityLogRow(index, "hours_spent", e.target.value)
                           }
-                          className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm"
+                          className="w-full rounded-xl border border-neutral-300 px-3 py-2.5 text-sm outline-none transition focus:border-neutral-500 focus:ring-2 focus:ring-neutral-200"
                           placeholder="Optional"
                         />
                       </div>
@@ -954,7 +946,7 @@ export function UserDashboardPage() {
                           onChange={(e) =>
                             updateActivityLogRow(index, "output_note", e.target.value)
                           }
-                          className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm"
+                          className="w-full rounded-xl border border-neutral-300 px-3 py-2.5 text-sm outline-none transition focus:border-neutral-500 focus:ring-2 focus:ring-neutral-200"
                           placeholder="Optional"
                         />
                       </div>
@@ -963,12 +955,12 @@ export function UserDashboardPage() {
                 ))}
               </div>
 
-              <div className="flex flex-wrap gap-3 justify-between">
+              <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">
                 <Button
                   type="button"
                   variant="outline"
                   onClick={addActivityLogRow}
-                  className="flex items-center gap-2"
+                  className="w-full sm:w-auto"
                 >
                   <Plus className="w-4 h-4" />
                   Add Activity
@@ -978,6 +970,7 @@ export function UserDashboardPage() {
                   type="button"
                   onClick={handleSaveActivityLogs}
                   disabled={isSavingActivityLogs}
+                  className="w-full sm:w-auto"
                 >
                   {isSavingActivityLogs ? 'Saving...' : 'Save Activity Logs'}
                 </Button>
@@ -987,61 +980,125 @@ export function UserDashboardPage() {
         )}
 
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Attendance History</CardTitle>
-            <CardDescription>Your recent attendance records</CardDescription>
+        <Card className="overflow-hidden rounded-2xl border-neutral-200/80 shadow-sm">
+          <CardHeader className="border-b border-neutral-100 p-5 sm:p-6">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <CardTitle className="text-lg font-semibold">
+                  Attendance History
+                </CardTitle>
+                <CardDescription>Your most recent attendance records</CardDescription>
+              </div>
+              <div className="rounded-full bg-neutral-100 px-3 py-1 text-xs font-medium text-neutral-600">
+                {attendanceHistory.length} records
+              </div>
+            </div>
           </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Clock In</TableHead>
-                  <TableHead>Clock Out</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Action</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {attendanceHistory.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-center text-neutral-500 py-8">
-                      No attendance records found
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  attendanceHistory.map((record) => {
-                    const hasPendingRequest = pendingRequestAttendanceIds.includes(record.id);
+          <CardContent className="p-0">
+            <div className="divide-y divide-neutral-100 md:hidden">
+              {attendanceHistory.length === 0 ? (
+                <div className="px-5 py-10 text-center text-sm text-neutral-500">
+                  No attendance records found
+                </div>
+              ) : (
+                attendanceHistory.map((record) => {
+                  const hasPendingRequest =
+                    pendingRequestAttendanceIds.includes(record.id);
 
-                    return (
-                      <TableRow key={record.id}>
-                        <TableCell>{formatDate(record.date)}</TableCell>
-                        <TableCell>{formatTime(record.clockIn)}</TableCell>
-                        <TableCell>{record.clockOut ? formatTime(record.clockOut) : '-'}</TableCell>
-                        <TableCell>
-                          <Badge variant={getStatusBadgeVariant(record.status)}>
-                            {record.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="flex items-center gap-2"
-                            disabled={hasPendingRequest}
-                            onClick={() => handleOpenPunchDialog(record)}
-                          >
-                            <FileEdit className="w-4 h-4" />
-                            {hasPendingRequest ? 'Request Pending' : 'Request Alteration'}
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })
-                )}
-              </TableBody>
-            </Table>
+                  return (
+                    <div key={record.id} className="space-y-4 p-5">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="font-medium text-neutral-900">
+                            {formatDate(record.date)}
+                          </p>
+                          <p className="mt-1 text-xs text-neutral-500">
+                            {formatTime(record.clockIn)} –{" "}
+                            {record.clockOut
+                              ? formatTime(record.clockOut)
+                              : "Not clocked out"}
+                          </p>
+                        </div>
+                        <Badge variant={getStatusBadgeVariant(record.status)}>
+                          {record.status}
+                        </Badge>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full"
+                        disabled={hasPendingRequest}
+                        onClick={() => handleOpenPunchDialog(record)}
+                      >
+                        <FileEdit className="mr-2 h-4 w-4" />
+                        {hasPendingRequest
+                          ? "Alteration request pending"
+                          : "Request punch alteration"}
+                      </Button>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            <div className="hidden md:block">
+              <Table>
+                <TableHeader className="bg-neutral-50/80">
+                  <TableRow>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Clock In</TableHead>
+                    <TableHead>Clock Out</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Action</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {attendanceHistory.length === 0 ? (
+                    <TableRow>
+                      <TableCell
+                        colSpan={5}
+                        className="py-10 text-center text-neutral-500"
+                      >
+                        No attendance records found
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    attendanceHistory.map((record) => {
+                      const hasPendingRequest =
+                        pendingRequestAttendanceIds.includes(record.id);
+
+                      return (
+                        <TableRow key={record.id}>
+                          <TableCell>{formatDate(record.date)}</TableCell>
+                          <TableCell>{formatTime(record.clockIn)}</TableCell>
+                          <TableCell>
+                            {record.clockOut ? formatTime(record.clockOut) : "-"}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={getStatusBadgeVariant(record.status)}>
+                              {record.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={hasPendingRequest}
+                              onClick={() => handleOpenPunchDialog(record)}
+                            >
+                              <FileEdit className="mr-2 h-4 w-4" />
+                              {hasPendingRequest
+                                ? "Request Pending"
+                                : "Request Alteration"}
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  )}
+                </TableBody>
+              </Table>
+            </div>
           </CardContent>
         </Card>
 

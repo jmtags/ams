@@ -91,7 +91,7 @@ export function UserLayout({ children }: UserLayoutProps) {
     'Employee Portal';
 
   return (
-    <div className="min-h-screen bg-neutral-50 flex">
+    <div className="min-h-screen bg-neutral-100/70 flex">
       {sidebarOpen && (
         <div
           className="fixed inset-0 z-40 bg-black/40 lg:hidden"
@@ -102,7 +102,7 @@ export function UserLayout({ children }: UserLayoutProps) {
       <aside
         className={`
           fixed lg:static inset-y-0 left-0 z-50
-          w-64 bg-white border-r border-neutral-200
+          w-64 bg-white border-r border-neutral-200 shadow-2xl lg:shadow-none
           transform transition-transform duration-200 ease-in-out
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
         `}
@@ -134,7 +134,7 @@ export function UserLayout({ children }: UserLayoutProps) {
           </p>
         </div>
 
-        <nav className="p-4 space-y-1">
+        <nav className="p-4 pb-24 space-y-1 overflow-y-auto">
           {navigation.map((item) => {
             const Icon = item.icon;
             const active = isActiveRoute(item.href);
@@ -145,10 +145,10 @@ export function UserLayout({ children }: UserLayoutProps) {
                 to={item.href}
                 onClick={() => setSidebarOpen(false)}
                 className={`
-                  flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors
+                  flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all
                   ${
                     active
-                      ? 'bg-neutral-900 text-white'
+                      ? 'bg-neutral-900 text-white shadow-sm'
                       : 'text-neutral-700 hover:bg-neutral-100'
                   }
                 `}
@@ -173,7 +173,7 @@ export function UserLayout({ children }: UserLayoutProps) {
       </aside>
 
       <div className="flex-1 min-w-0 flex flex-col">
-        <header className="h-16 bg-white border-b border-neutral-200 flex items-center justify-between px-4 lg:px-6">
+        <header className="sticky top-0 z-30 h-16 bg-white/85 backdrop-blur-xl border-b border-neutral-200/80 flex items-center justify-between px-4 lg:px-6">
           <div className="flex items-center gap-3">
             <button
               type="button"
@@ -203,7 +203,7 @@ export function UserLayout({ children }: UserLayoutProps) {
           </div>
         </header>
 
-        <main className="flex-1 p-4 lg:p-6 overflow-x-hidden">
+        <main className="flex-1 p-3 sm:p-5 lg:p-7 overflow-x-hidden">
           {children}
         </main>
       </div>
