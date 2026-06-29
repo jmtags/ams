@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { BookOpen, ExternalLink, FileText, Search } from "lucide-react";
+import { useAuth } from "../hooks/useAuth";
 import { UserLayout } from "../layouts/user-layout";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
@@ -33,6 +34,7 @@ const formatFileSize = (bytes?: number | null) => {
 };
 
 export function UserPolicyDocumentsPage() {
+  const { user } = useAuth();
   const [documents, setDocuments] = useState<PolicyDocument[]>([]);
   const [selectedDocument, setSelectedDocument] =
     useState<PolicyDocument | null>(null);
@@ -45,7 +47,11 @@ export function UserPolicyDocumentsPage() {
       try {
         setIsLoading(true);
         setError("");
-        setDocuments(await policyDocumentService.getPublished());
+        const publishedDocuments = await policyDocumentService.getPublished();
+        setDocuments(publishedDocuments);
+        if (user?.id) {
+          policyDocumentService.markAsSeen(publishedDocuments, user.id);
+        }
       } catch (err) {
         setError(
           err instanceof Error
@@ -58,7 +64,7 @@ export function UserPolicyDocumentsPage() {
     };
 
     void loadDocuments();
-  }, []);
+  }, [user?.id]);
 
   const filteredDocuments = useMemo(() => {
     const query = search.trim().toLowerCase();

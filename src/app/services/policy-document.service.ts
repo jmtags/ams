@@ -27,6 +27,8 @@ export type PolicyDocumentPayload = {
 
 const POLICY_BUCKET = "policy-documents";
 const MAX_PDF_SIZE = 20 * 1024 * 1024;
+const seenDocumentsKey = (userId: string) =>
+  `hris-seen-policy-documents:${userId}`;
 
 const normalizeRemoteDocuments = (payload: unknown): PolicyDocument[] => {
   if (!payload || typeof payload !== "object") return [];
@@ -124,6 +126,49 @@ const fetchMainContent = async (url: string, anonKey: string) => {
 };
 
 export const policyDocumentService = {
+  getUnseen(
+    documents: PolicyDocument[],
+    userId: string
+  ): PolicyDocument[] {
+    if (typeof window === "undefined" || !userId) return documents;
+
+    try {
+      const stored = window.localStorage.getItem(seenDocumentsKey(userId));
+      const seenVersions = stored
+        ? (JSON.parse(stored) as Record<string, string>)
+        : {};
+
+      return documents.filter(
+        (document) => seenVersions[document.id] !== document.updated_at
+      );
+    } catch {
+      return documents;
+    }
+  },
+
+  markAsSeen(documents: PolicyDocument[], userId: string): void {
+    if (typeof window === "undefined" || !userId) return;
+
+    try {
+      const stored = window.localStorage.getItem(seenDocumentsKey(userId));
+      const seenVersions = stored
+        ? (JSON.parse(stored) as Record<string, string>)
+        : {};
+
+      for (const document of documents) {
+        seenVersions[document.id] = document.updated_at;
+      }
+
+      window.localStorage.setItem(
+        seenDocumentsKey(userId),
+        JSON.stringify(seenVersions)
+      );
+    } catch {
+      // Notifications are a convenience; document access should still work
+      // when browser storage is unavailable.
+    }
+  },
+
   async getPublished(): Promise<PolicyDocument[]> {
     const config = await appSettingsService.getInstanceConfig();
 

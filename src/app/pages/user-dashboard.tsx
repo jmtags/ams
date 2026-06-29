@@ -11,9 +11,11 @@ import {
   Trash2,
   ClipboardList,
   Megaphone,
+  BookOpen,
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
+import { useNavigate } from "react-router";
 import { useAuth } from '../hooks/useAuth';
 import { UserLayout } from '../layouts/user-layout';
 import { Button } from '../components/ui/button';
@@ -51,6 +53,10 @@ import {
   type Announcement,
 } from "../services/announcement.service";
 import { appSettingsService } from "../services/app-settings.service";
+import {
+  policyDocumentService,
+  type PolicyDocument,
+} from "../services/policy-document.service";
 import type { AttendanceRecord, Location } from '../lib/types';
 import { formatDate, formatTime, getGreeting } from '../lib/utils';
 
@@ -103,6 +109,7 @@ function combineDateAndTime(date: string, time: string) {
 
 export function UserDashboardPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [currentTime, setCurrentTime] = useState(new Date());
 
   const [attendanceHistory, setAttendanceHistory] = useState<AttendanceRecord[]>([]);
@@ -133,6 +140,10 @@ export function UserDashboardPage() {
   const [announcementImageErrors, setAnnouncementImageErrors] = useState<string[]>([]);
   const [currentAnnouncementIndex, setCurrentAnnouncementIndex] = useState(0);
   const [expandedAnnouncementIds, setExpandedAnnouncementIds] = useState<string[]>([]);
+  const [policyDocuments, setPolicyDocuments] = useState<PolicyDocument[]>([]);
+  const [unseenPolicyDocuments, setUnseenPolicyDocuments] = useState<
+    PolicyDocument[]
+  >([]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -214,6 +225,20 @@ export function UserDashboardPage() {
     }
   };
 
+  const loadPolicyNotifications = async (userId: string) => {
+    try {
+      const publishedDocuments = await policyDocumentService.getPublished();
+      setPolicyDocuments(publishedDocuments);
+      setUnseenPolicyDocuments(
+        policyDocumentService.getUnseen(publishedDocuments, userId)
+      );
+    } catch (err) {
+      console.error("Error loading policy document notifications:", err);
+      setPolicyDocuments([]);
+      setUnseenPolicyDocuments([]);
+    }
+  };
+
   const loadAllData = async () => {
     if (!user?.id) return;
 
@@ -234,6 +259,7 @@ export function UserDashboardPage() {
       await Promise.all([
         loadTodayShiftRequirementAndLogs(user.id),
         loadAnnouncements(),
+        loadPolicyNotifications(user.id),
       ]);
 
       const pendingChecks = await Promise.all(
@@ -318,6 +344,14 @@ export function UserDashboardPage() {
 
   const closeAnnouncementDialog = () => {
     setIsAnnouncementDialogOpen(false);
+  };
+
+  const handleOpenPolicyDocuments = () => {
+    if (user?.id) {
+      policyDocumentService.markAsSeen(policyDocuments, user.id);
+    }
+    setUnseenPolicyDocuments([]);
+    navigate("/policies");
   };
 
   const handleAnnouncementImageError = (announcementId: string) => {
@@ -557,6 +591,20 @@ export function UserDashboardPage() {
                   })}
                 </p>
               </div>
+              {unseenPolicyDocuments.length > 0 && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleOpenPolicyDocuments}
+                  className="border-emerald-300/30 bg-emerald-400/15 text-white hover:bg-emerald-400/25"
+                >
+                  <BookOpen className="mr-2 h-4 w-4" />
+                  New Policies &amp; Documents
+                  <span className="ml-2 rounded-full bg-emerald-300 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-950">
+                    {unseenPolicyDocuments.length}
+                  </span>
+                </Button>
+              )}
               {announcementPopupEnabled && announcements.length > 0 && (
                 <Button
                   type="button"
