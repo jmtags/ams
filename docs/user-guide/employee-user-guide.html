@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>HRIS Employee User Guide</title>
+    <style>
+      @page { size: A4 landscape; margin: 0; }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        color: #171717;
+        font-family: Arial, Helvetica, sans-serif;
+        background: #e5e7eb;
+      }
+      .page {
+        position: relative;
+        width: 297mm;
+        height: 210mm;
+        padding: 14mm 16mm;
+        overflow: hidden;
+        page-break-after: always;
+        background: #f8fafc;
+      }
+      .page:last-child { page-break-after: auto; }
+      .cover {
+        display: flex;
+        align-items: center;
+        background:
+          radial-gradient(circle at 85% 15%, rgba(255,255,255,.18), transparent 25%),
+          linear-gradient(135deg, #0a0a0a, #172033);
+        color: white;
+      }
+      .cover h1 { font-size: 32pt; line-height: 1.05; margin: 0 0 8mm; }
+      .cover p { font-size: 15pt; color: #d4d4d8; max-width: 145mm; line-height: 1.5; }
+      .cover-card {
+        margin-left: auto;
+        width: 82mm;
+        padding: 10mm;
+        border: 1px solid rgba(255,255,255,.2);
+        border-radius: 8mm;
+        background: rgba(255,255,255,.1);
+      }
+      .cover-card div { margin: 4mm 0; font-size: 13pt; }
+      h2 { margin: 0; font-size: 23pt; letter-spacing: -.4px; }
+      .subtitle { margin: 2mm 0 7mm; color: #525252; font-size: 11.5pt; }
+      .layout { display: grid; grid-template-columns: 80mm 1fr; gap: 9mm; align-items: start; }
+      .steps {
+        padding: 6mm;
+        border-radius: 6mm;
+        background: white;
+        border: 1px solid #e5e7eb;
+        box-shadow: 0 2mm 8mm rgba(15,23,42,.06);
+      }
+      .step { display: grid; grid-template-columns: 10mm 1fr; gap: 3mm; margin-bottom: 5mm; }
+      .step:last-child { margin-bottom: 0; }
+      .number {
+        width: 9mm; height: 9mm;
+        display: flex; align-items: center; justify-content: center;
+        border-radius: 50%;
+        color: white; background: #111827;
+        font-size: 12pt; font-weight: 700;
+      }
+      .step strong { display: block; margin-bottom: 1mm; font-size: 12pt; }
+      .step span { color: #525252; font-size: 10.5pt; line-height: 1.35; }
+      .shot {
+        width: 100%;
+        max-height: 147mm;
+        object-fit: contain;
+        object-position: top;
+        border: 1px solid #d4d4d8;
+        border-radius: 4mm;
+        background: white;
+        box-shadow: 0 2mm 8mm rgba(15,23,42,.08);
+      }
+      .tip {
+        margin-top: 5mm; padding: 4mm 5mm;
+        border-radius: 4mm; background: #ecfdf5; color: #065f46;
+        border: 1px solid #a7f3d0; font-size: 10.5pt; line-height: 1.35;
+      }
+      .warning { background: #fffbeb; color: #92400e; border-color: #fde68a; }
+      .two { display: grid; grid-template-columns: 1fr 1fr; gap: 8mm; }
+      .card {
+        padding: 7mm; border-radius: 6mm; background: white;
+        border: 1px solid #e5e7eb; box-shadow: 0 2mm 8mm rgba(15,23,42,.05);
+      }
+      .card h3 { margin: 0 0 4mm; font-size: 16pt; }
+      .card p, .card li { font-size: 11.5pt; line-height: 1.5; color: #404040; }
+      .card li { margin: 2mm 0; }
+      .big-check { color: #059669; font-weight: 700; }
+      .footer {
+        position: absolute; left: 16mm; right: 16mm; bottom: 7mm;
+        display: flex; justify-content: space-between; color: #737373; font-size: 8.5pt;
+      }
+      .mobile-layout { display: grid; grid-template-columns: 70mm 1fr; gap: 12mm; align-items: center; }
+      .phone { max-height: 158mm; max-width: 70mm; margin: auto; border-radius: 6mm; }
+      .url { display: inline-block; padding: 2.5mm 4mm; border-radius: 3mm; background: #e5e7eb; font-family: monospace; }
+    </style>
+  </head>
+  <body>
+    <section class="page cover">
+      <div>
+        <div style="font-size:13pt;color:#93c5fd;margin-bottom:5mm;">EMPLOYEE PORTAL</div>
+        <h1>HRIS User Guide</h1>
+        <p>A picture-by-picture guide for attendance, leave, payroll, policies, profile updates, and shift changes.</p>
+        <p style="font-size:11pt;margin-top:14mm;">Made simple: look for the button, click it once, and read the message on the screen.</p>
+      </div>
+      <div class="cover-card">
+        <div>🕐 Clock in and out</div>
+        <div>🏖️ File leave</div>
+        <div>💰 Read payslips</div>
+        <div>📖 Read policies</div>
+        <div>📅 Request a shift</div>
+      </div>
+      <div class="footer"><span>HRIS Employee Guide</span><span>Updated June 2026</span></div>
+    </section>
+
+    <section class="page">
+      <h2>1. Sign in</h2>
+      <p class="subtitle">This is the front door. Use the email and password given to you by HR.</p>
+      <div class="layout">
+        <div class="steps">
+          <div class="step"><div class="number">1</div><div><strong>Open the website</strong><span class="url">psyzygyams.vercel.app</span></div></div>
+          <div class="step"><div class="number">2</div><div><strong>Type your email</strong><span>Click the Email box and type carefully.</span></div></div>
+          <div class="step"><div class="number">3</div><div><strong>Type your password</strong><span>The dots hide your password. That is normal.</span></div></div>
+          <div class="step"><div class="number">4</div><div><strong>Press “Sign In”</strong><span>Wait for your Dashboard to appear.</span></div></div>
+          <div class="tip warning"><b>Keep it secret:</b> Never send your password to another person.</div>
+        </div>
+        <img class="shot" src="screenshots/01-login.png" alt="HRIS login page" />
+      </div>
+      <div class="footer"><span>HRIS Employee Guide</span><span>2</span></div>
+    </section>
+
+    <section class="page">
+      <h2>2. Meet your Dashboard</h2>
+      <p class="subtitle">The Dashboard is your home screen. The menu on the left takes you to every tool.</p>
+      <div class="layout">
+        <div class="steps">
+          <div class="step"><div class="number">1</div><div><strong>Look at your status</strong><span>The dark banner tells you if you are clocked in.</span></div></div>
+          <div class="step"><div class="number">2</div><div><strong>Check today’s time</strong><span>The big clock uses your local time.</span></div></div>
+          <div class="step"><div class="number">3</div><div><strong>Use the left menu</strong><span>Choose Dashboard, Profile, Payroll, Leave, Policies, or Shift Change.</span></div></div>
+          <div class="step"><div class="number">4</div><div><strong>Read announcements</strong><span>Press “Announcements” when you see a number beside it.</span></div></div>
+        </div>
+        <img class="shot" src="screenshots/02-dashboard.png" alt="Employee dashboard" />
+      </div>
+      <div class="footer"><span>HRIS Employee Guide</span><span>3</span></div>
+    </section>
+
+    <section class="page">
+      <h2>3. Clock in, clock out, and fix a wrong time</h2>
+      <p class="subtitle">Clock in when work starts. Clock out when work ends.</p>
+      <div class="two">
+        <div class="card">
+          <h3>▶ Starting work</h3>
+          <ol>
+            <li>Open <b>Dashboard</b>.</li>
+            <li>Press <b>Clock In</b> one time.</li>
+            <li>Check that your clock-in time appears.</li>
+          </ol>
+          <h3 style="margin-top:7mm;">■ Ending work</h3>
+          <ol>
+            <li>Finish any required Daily Activity Log.</li>
+            <li>Press <b>Clock Out</b> one time.</li>
+            <li>Check that your clock-out time appears.</li>
+          </ol>
+          <div class="tip"><b>Good sign:</b> A gray button usually means that action is already finished or not ready yet.</div>
+        </div>
+        <div class="card">
+          <h3>✏️ Wrong clock time?</h3>
+          <ol>
+            <li>Go down to <b>Attendance History</b>.</li>
+            <li>Find the correct day.</li>
+            <li>Press <b>Request Alteration</b>.</li>
+            <li>Enter the correct time and a short reason.</li>
+            <li>Submit and wait for HR approval.</li>
+          </ol>
+          <div class="tip warning"><b>Do not guess.</b> Enter the real time and explain what happened.</div>
+        </div>
+      </div>
+      <div class="footer"><span>HRIS Employee Guide</span><span>4</span></div>
+    </section>
+
+    <section class="page">
+      <h2>4. Use HRIS on your phone</h2>
+      <p class="subtitle">The same tools work on a small screen. Everything stacks neatly so buttons are easy to tap.</p>
+      <div class="mobile-layout">
+        <img class="shot phone" src="screenshots/08-mobile-dashboard.png" alt="Mobile employee dashboard" />
+        <div class="steps">
+          <div class="step"><div class="number">1</div><div><strong>Open the menu</strong><span>Tap the three-line menu button at the top-left.</span></div></div>
+          <div class="step"><div class="number">2</div><div><strong>Scroll down</strong><span>Swipe up gently to see attendance history and more tools.</span></div></div>
+          <div class="step"><div class="number">3</div><div><strong>Tap once</strong><span>Wait after tapping Clock In, Clock Out, or Submit.</span></div></div>
+          <div class="step"><div class="number">4</div><div><strong>Turn the phone if needed</strong><span>Landscape view can make wide information easier to read.</span></div></div>
+          <div class="tip"><b>Internet check:</b> If nothing happens, make sure Wi-Fi or mobile data is on.</div>
+        </div>
+      </div>
+      <div class="footer"><span>HRIS Employee Guide</span><span>5</span></div>
+    </section>
+
+    <section class="page">
+      <h2>5. File a leave request</h2>
+      <p class="subtitle">Use “My Leave” to ask for time away and check how many leave credits are available.</p>
+      <div class="layout">
+        <div class="steps">
+          <div class="step"><div class="number">1</div><div><strong>Choose My Leave</strong><span>Find it in the left menu.</span></div></div>
+          <div class="step"><div class="number">2</div><div><strong>Check Leave Credits</strong><span>“Available” shows what you can still use.</span></div></div>
+          <div class="step"><div class="number">3</div><div><strong>Fill the form</strong><span>Pick a leave type, dates, whole/half day, and write a reason.</span></div></div>
+          <div class="step"><div class="number">4</div><div><strong>Add a file if asked</strong><span>Some leave types require proof or an attachment.</span></div></div>
+          <div class="step"><div class="number">5</div><div><strong>Submit</strong><span>Look below the form to follow the request status.</span></div></div>
+        </div>
+        <img class="shot" src="screenshots/03-my-leave.png" alt="My Leave page" />
+      </div>
+      <div class="footer"><span>HRIS Employee Guide</span><span>6</span></div>
+    </section>
+
+    <section class="page">
+      <h2>6. Read your payroll and payslip</h2>
+      <p class="subtitle">Your pay information is private. Only open it where other people cannot look over your shoulder.</p>
+      <div class="layout">
+        <div class="steps">
+          <div class="step"><div class="number">1</div><div><strong>Choose My Payroll</strong><span>Your latest pay and payroll history appear here.</span></div></div>
+          <div class="step"><div class="number">2</div><div><strong>Find a pay period</strong><span>Use Search, Status, or Year when the list is long.</span></div></div>
+          <div class="step"><div class="number">3</div><div><strong>Press View Payslip</strong><span>You will see earnings, deductions, and net pay.</span></div></div>
+          <div class="step"><div class="number">4</div><div><strong>Download if needed</strong><span>Save the payslip only on your own device.</span></div></div>
+          <div class="tip warning"><b>Private:</b> Do not post a payslip in a public chat or social media.</div>
+        </div>
+        <img class="shot" src="screenshots/04-my-payroll.png" alt="My Payroll page with private amounts hidden" />
+      </div>
+      <div class="footer"><span>HRIS Employee Guide</span><span>7</span></div>
+    </section>
+
+    <section class="page">
+      <h2>7. Check or update your Profile</h2>
+      <p class="subtitle">Your profile holds your personal, government, and bank information.</p>
+      <div class="layout">
+        <div class="steps">
+          <div class="step"><div class="number">1</div><div><strong>Choose Profile</strong><span>Check that your information is correct.</span></div></div>
+          <div class="step"><div class="number">2</div><div><strong>Press Edit Profile</strong><span>Editable boxes will become available.</span></div></div>
+          <div class="step"><div class="number">3</div><div><strong>Fix the information</strong><span>Type slowly and check every number.</span></div></div>
+          <div class="step"><div class="number">4</div><div><strong>Save Changes</strong><span>Wait for the success message before leaving.</span></div></div>
+          <div class="tip warning"><b>Be careful:</b> SSS, Pag-IBIG, PhilHealth, and ATM numbers must be exact.</div>
+        </div>
+        <img class="shot" src="screenshots/05-profile.png" alt="Employee profile with private numbers hidden" />
+      </div>
+      <div class="footer"><span>HRIS Employee Guide</span><span>8</span></div>
+    </section>
+
+    <section class="page">
+      <h2>8. Read Company Policies</h2>
+      <p class="subtitle">Corporate HR places important PDF documents in the Policy Library.</p>
+      <div class="layout">
+        <div class="steps">
+          <div class="step"><div class="number">1</div><div><strong>Choose Company Policies</strong><span>Open it from the left menu.</span></div></div>
+          <div class="step"><div class="number">2</div><div><strong>Find a policy</strong><span>Use the Search box when many documents are available.</span></div></div>
+          <div class="step"><div class="number">3</div><div><strong>Click the policy card</strong><span>The PDF opens in a large pop-up reader.</span></div></div>
+          <div class="step"><div class="number">4</div><div><strong>Read or open a new tab</strong><span>Scroll through the PDF, then press Close when done.</span></div></div>
+          <div class="tip"><b>Empty library?</b> It only means Corporate HR has not published a document yet.</div>
+        </div>
+        <img class="shot" src="screenshots/06-policies.png" alt="Company Policy Library" />
+      </div>
+      <div class="footer"><span>HRIS Employee Guide</span><span>9</span></div>
+    </section>
+
+    <section class="page">
+      <h2>9. Ask for a temporary Shift Change</h2>
+      <p class="subtitle">Use this when you need a different shift on one specific date.</p>
+      <div class="layout">
+        <div class="steps">
+          <div class="step"><div class="number">1</div><div><strong>Choose Shift Change</strong><span>Your old requests and their status appear here.</span></div></div>
+          <div class="step"><div class="number">2</div><div><strong>Press New Request</strong><span>A small form will open.</span></div></div>
+          <div class="step"><div class="number">3</div><div><strong>Pick the date and shift</strong><span>Choose the exact day and the shift you need.</span></div></div>
+          <div class="step"><div class="number">4</div><div><strong>Write the reason</strong><span>Use a short, honest explanation.</span></div></div>
+          <div class="step"><div class="number">5</div><div><strong>Submit and wait</strong><span>The change applies only after approval.</span></div></div>
+        </div>
+        <img class="shot" src="screenshots/07-shift-change.png" alt="Shift Change Requests page" />
+      </div>
+      <div class="footer"><span>HRIS Employee Guide</span><span>10</span></div>
+    </section>
+
+    <section class="page">
+      <h2>10. Remember these simple rules</h2>
+      <p class="subtitle">A small checklist keeps your HRIS records safe and correct.</p>
+      <div class="two">
+        <div class="card">
+          <h3>Every workday</h3>
+          <ul>
+            <li><span class="big-check">✓</span> Clock in only when work starts.</li>
+            <li><span class="big-check">✓</span> Complete required activity logs.</li>
+            <li><span class="big-check">✓</span> Clock out only when work ends.</li>
+            <li><span class="big-check">✓</span> Check that the time appears.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Keep your account safe</h3>
+          <ul>
+            <li><span class="big-check">✓</span> Keep your password secret.</li>
+            <li><span class="big-check">✓</span> Do not share payslips publicly.</li>
+            <li><span class="big-check">✓</span> Press <b>Logout</b> on a shared device.</li>
+            <li><span class="big-check">✓</span> Ask HR when something looks wrong.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="tip" style="margin-top:10mm;font-size:13pt;padding:7mm;">
+        <b>Need help?</b> Take a screenshot of the error message and send it to your HR or system administrator. Never include your password.
+      </div>
+      <div class="footer"><span>HRIS Employee Guide</span><span>11</span></div>
+    </section>
+  </body>
+</html>
