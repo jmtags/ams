@@ -50,7 +50,7 @@ export function UserPolicyDocumentsPage() {
         setError(
           err instanceof Error
             ? err.message
-            : "Failed to load Corporate HR policies."
+            : "Failed to load Corporate HR policies and documents."
         );
       } finally {
         setIsLoading(false);
@@ -80,7 +80,9 @@ export function UserPolicyDocumentsPage() {
     <UserLayout>
       <div className="space-y-6">
         <div>
-          <h1 className="text-neutral-900 mb-1">Company Policies</h1>
+          <h1 className="text-neutral-900 mb-1">
+            Company Policies and Documents
+          </h1>
           <p className="text-neutral-600">
             Read the latest policies and documents published by Corporate HR.
           </p>
@@ -98,7 +100,7 @@ export function UserPolicyDocumentsPage() {
               <div>
                 <CardTitle className="flex items-center gap-2">
                   <BookOpen className="w-5 h-5" />
-                  Policy Library
+                  Policies and Documents Library
                 </CardTitle>
                 <CardDescription>
                   Select a document to read it without leaving the portal.
@@ -109,7 +111,7 @@ export function UserPolicyDocumentsPage() {
                 <Input
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Search policies..."
+                  placeholder="Search policies and documents..."
                   className="pl-10"
                 />
               </div>
@@ -125,8 +127,8 @@ export function UserPolicyDocumentsPage() {
                 <FileText className="w-10 h-10 text-neutral-300 mx-auto mb-3" />
                 <p className="text-neutral-600">
                   {search
-                    ? "No policies match your search."
-                    : "No policy documents are currently available."}
+                    ? "No policies or documents match your search."
+                    : "No policies or documents are currently available."}
                 </p>
               </div>
             ) : (

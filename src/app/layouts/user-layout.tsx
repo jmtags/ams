@@ -41,7 +41,7 @@ const navigation = [
     icon: CalendarDays,
   },
   {
-    name: 'Company Policies',
+    name: 'Company Policies and Documents',
     href: '/policies',
     icon: BookOpen,
   },
