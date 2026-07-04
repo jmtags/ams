@@ -16,6 +16,8 @@ import {
   ChevronRight,
   Camera,
   LoaderCircle,
+  Pause,
+  Play,
 } from 'lucide-react';
 import { useNavigate } from "react-router";
 import { useAuth } from '../hooks/useAuth';
@@ -91,6 +93,7 @@ type TodayShiftRequirement = {
 } | null;
 
 const ANNOUNCEMENT_PREVIEW_LENGTH = 420;
+const ANNOUNCEMENT_ROTATION_INTERVAL_MS = 12000;
 
 const initialPunchAlterationForm: PunchAlterationFormState = {
   requested_clock_in: '',
@@ -152,6 +155,8 @@ export function UserDashboardPage() {
   const [announcementImageErrors, setAnnouncementImageErrors] = useState<string[]>([]);
   const [currentAnnouncementIndex, setCurrentAnnouncementIndex] = useState(0);
   const [expandedAnnouncementIds, setExpandedAnnouncementIds] = useState<string[]>([]);
+  const [isAnnouncementCarouselPaused, setIsAnnouncementCarouselPaused] =
+    useState(false);
   const [policyDocuments, setPolicyDocuments] = useState<PolicyDocument[]>([]);
   const [unseenPolicyDocuments, setUnseenPolicyDocuments] = useState<
     PolicyDocument[]
@@ -170,14 +175,24 @@ export function UserDashboardPage() {
   }, [user]);
 
   useEffect(() => {
-    if (!isAnnouncementDialogOpen || announcements.length <= 1) return;
+    if (
+      !isAnnouncementDialogOpen ||
+      isAnnouncementCarouselPaused ||
+      announcements.length <= 1
+    ) {
+      return;
+    }
 
     const timer = setInterval(() => {
       setCurrentAnnouncementIndex((prev) => (prev + 1) % announcements.length);
-    }, 7000);
+    }, ANNOUNCEMENT_ROTATION_INTERVAL_MS);
 
     return () => clearInterval(timer);
-  }, [announcements.length, isAnnouncementDialogOpen]);
+  }, [
+    announcements.length,
+    isAnnouncementCarouselPaused,
+    isAnnouncementDialogOpen,
+  ]);
 
   const loadTodayShiftRequirementAndLogs = async (userId: string) => {
     try {
@@ -228,6 +243,7 @@ export function UserDashboardPage() {
       setAnnouncementImageErrors([]);
       setCurrentAnnouncementIndex(0);
       setExpandedAnnouncementIds([]);
+      setIsAnnouncementCarouselPaused(false);
 
       if (config.showAnnouncementPopup && activeAnnouncements.length > 0) {
         setIsAnnouncementDialogOpen(true);
@@ -409,6 +425,10 @@ export function UserDashboardPage() {
   };
 
   const toggleFullAnnouncement = (announcementId: string) => {
+    if (!expandedAnnouncementIds.includes(announcementId)) {
+      setIsAnnouncementCarouselPaused(true);
+    }
+
     setExpandedAnnouncementIds((prev) =>
       prev.includes(announcementId)
         ? prev.filter((id) => id !== announcementId)
@@ -1343,20 +1363,45 @@ export function UserDashboardPage() {
                         Previous
                       </Button>
 
-                      <div className="flex items-center gap-1">
-                        {announcements.map((announcement, index) => (
-                          <button
-                            key={announcement.id}
-                            type="button"
-                            aria-label={`Show announcement ${index + 1}`}
-                            onClick={() => setCurrentAnnouncementIndex(index)}
-                            className={`h-2.5 w-2.5 rounded-full transition-colors ${
-                              index === currentAnnouncementIndex
-                                ? 'bg-neutral-900'
-                                : 'bg-neutral-300'
-                            }`}
-                          />
-                        ))}
+                      <div className="flex flex-wrap items-center justify-center gap-3">
+                        <div className="flex items-center gap-1">
+                          {announcements.map((announcement, index) => (
+                            <button
+                              key={announcement.id}
+                              type="button"
+                              aria-label={`Show announcement ${index + 1}`}
+                              onClick={() => setCurrentAnnouncementIndex(index)}
+                              className={`h-2.5 w-2.5 rounded-full transition-colors ${
+                                index === currentAnnouncementIndex
+                                  ? 'bg-neutral-900'
+                                  : 'bg-neutral-300'
+                              }`}
+                            />
+                          ))}
+                        </div>
+
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          aria-pressed={isAnnouncementCarouselPaused}
+                          onClick={() =>
+                            setIsAnnouncementCarouselPaused((paused) => !paused)
+                          }
+                          className="flex items-center gap-1.5"
+                        >
+                          {isAnnouncementCarouselPaused ? (
+                            <>
+                              <Play className="h-3.5 w-3.5" />
+                              Resume
+                            </>
+                          ) : (
+                            <>
+                              <Pause className="h-3.5 w-3.5" />
+                              Pause
+                            </>
+                          )}
+                        </Button>
                       </div>
 
                       <Button
