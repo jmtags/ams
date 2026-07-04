@@ -11,6 +11,8 @@ export type User = {
   pagibig?: string | null;
   philhealth?: string | null;
   atm_number?: string | null;
+  profile_picture_url?: string | null;
+  profile_picture_path?: string | null;
 };
 export interface AttendanceRecord {
   id: string;

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { ChangeEvent, useEffect, useRef, useState } from 'react';
 import {
   Clock,
   AlarmClock,
@@ -14,6 +14,8 @@ import {
   BookOpen,
   ChevronLeft,
   ChevronRight,
+  Camera,
+  LoaderCircle,
 } from 'lucide-react';
 import { useNavigate } from "react-router";
 import { useAuth } from '../hooks/useAuth';
@@ -36,6 +38,11 @@ import {
 } from '../components/ui/table';
 import { Badge } from '../components/ui/badge';
 import {
+  Avatar,
+  AvatarFallback,
+  AvatarImage,
+} from '../components/ui/avatar';
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -53,6 +60,7 @@ import {
   type Announcement,
 } from "../services/announcement.service";
 import { appSettingsService } from "../services/app-settings.service";
+import { userService } from "../services/user.service";
 import {
   policyDocumentService,
   type PolicyDocument,
@@ -108,8 +116,9 @@ function combineDateAndTime(date: string, time: string) {
 }
 
 export function UserDashboardPage() {
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
   const navigate = useNavigate();
+  const profilePictureInputRef = useRef<HTMLInputElement>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
 
   const [attendanceHistory, setAttendanceHistory] = useState<AttendanceRecord[]>([]);
@@ -119,6 +128,9 @@ export function UserDashboardPage() {
   const [isLoading, setIsLoading] = useState(false);
 
   const [error, setError] = useState('');
+  const [isUploadingProfilePicture, setIsUploadingProfilePicture] =
+    useState(false);
+  const [profilePictureError, setProfilePictureError] = useState('');
 
   const [isPunchDialogOpen, setIsPunchDialogOpen] = useState(false);
   const [selectedAttendance, setSelectedAttendance] = useState<AttendanceRecord | null>(null);
@@ -346,6 +358,28 @@ export function UserDashboardPage() {
     setIsAnnouncementDialogOpen(false);
   };
 
+  const handleProfilePictureChange = async (
+    event: ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+
+    if (!file || !user?.id) return;
+
+    try {
+      setIsUploadingProfilePicture(true);
+      setProfilePictureError("");
+      const updatedUser = await userService.uploadProfilePicture(user.id, file);
+      updateUser(updatedUser);
+    } catch (err) {
+      setProfilePictureError(
+        err instanceof Error ? err.message : "Failed to upload profile picture."
+      );
+    } finally {
+      setIsUploadingProfilePicture(false);
+    }
+  };
+
   const handleOpenPolicyDocuments = () => {
     if (user?.id) {
       policyDocumentService.markAsSeen(policyDocuments, user.id);
@@ -561,23 +595,75 @@ export function UserDashboardPage() {
           <div className="pointer-events-none absolute -right-16 -top-24 h-64 w-64 rounded-full bg-white/10 blur-3xl" />
           <div className="pointer-events-none absolute -bottom-28 left-1/3 h-56 w-56 rounded-full bg-blue-400/10 blur-3xl" />
           <div className="relative flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs text-neutral-200 backdrop-blur">
-                <span
-                  className={`h-2 w-2 rounded-full ${
-                    todayAttendance?.clockIn && !todayAttendance?.clockOut
-                      ? "bg-emerald-400"
-                      : "bg-neutral-400"
-                  }`}
+            <div className="flex items-center gap-4 sm:gap-5">
+              <div className="shrink-0">
+                <input
+                  ref={profilePictureInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  className="sr-only"
+                  onChange={handleProfilePictureChange}
+                  disabled={isUploadingProfilePicture}
                 />
-                {attendanceState}
+                <button
+                  type="button"
+                  onClick={() => profilePictureInputRef.current?.click()}
+                  disabled={isUploadingProfilePicture}
+                  className="group relative rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-neutral-900 disabled:cursor-wait"
+                  aria-label="Upload profile picture"
+                  title="Upload profile picture"
+                >
+                  <Avatar className="h-20 w-20 border-2 border-white/30 bg-white/10 shadow-lg sm:h-24 sm:w-24">
+                    {user?.profile_picture_url && (
+                      <AvatarImage
+                        src={user.profile_picture_url}
+                        alt={`${user.name || "Employee"} profile`}
+                        className="object-cover"
+                      />
+                    )}
+                    <AvatarFallback className="bg-white/10 text-xl font-semibold text-white sm:text-2xl">
+                      {(user?.name || user?.email || "E")
+                        .split(/\s+/)
+                        .slice(0, 2)
+                        .map((part) => part[0]?.toUpperCase())
+                        .join("")}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span className="absolute bottom-0 right-0 flex h-8 w-8 items-center justify-center rounded-full border-2 border-neutral-900 bg-white text-neutral-900 shadow-md transition-transform group-hover:scale-105">
+                    {isUploadingProfilePicture ? (
+                      <LoaderCircle className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Camera className="h-4 w-4" />
+                    )}
+                  </span>
+                </button>
               </div>
-              <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-                {getGreeting()}, {user?.name?.split(" ")[0] || "there"}
-              </h1>
-              <p className="mt-2 max-w-xl text-sm text-neutral-300 sm:text-base">
-                Here is your attendance overview for today.
-              </p>
+
+              <div>
+                <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs text-neutral-200 backdrop-blur">
+                  <span
+                    className={`h-2 w-2 rounded-full ${
+                      todayAttendance?.clockIn && !todayAttendance?.clockOut
+                        ? "bg-emerald-400"
+                        : "bg-neutral-400"
+                    }`}
+                  />
+                  {attendanceState}
+                </div>
+                <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+                  {getGreeting()}, {user?.name?.split(" ")[0] || "there"}
+                </h1>
+                <p className="mt-2 max-w-xl text-sm text-neutral-300 sm:text-base">
+                  {isUploadingProfilePicture
+                    ? "Uploading your profile picture..."
+                    : "Here is your attendance overview for today."}
+                </p>
+                {profilePictureError && (
+                  <p className="mt-2 text-sm text-red-300" role="alert">
+                    {profilePictureError}
+                  </p>
+                )}
+              </div>
             </div>
 
             <div className="flex flex-wrap items-center gap-3">

@@ -13,6 +13,8 @@ export type User = {
   pagibig?: string | null;
   philhealth?: string | null;
   atm_number?: string | null;
+  profile_picture_url?: string | null;
+  profile_picture_path?: string | null;
   created_at?: string;
 };
 
@@ -113,6 +115,70 @@ const invokeAdminUpdateUser = async (
 };
 
 export const userService = {
+  uploadProfilePicture: async (id: string, file: File): Promise<User> => {
+    const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
+    const maxFileSize = 5 * 1024 * 1024;
+
+    if (!allowedTypes.includes(file.type)) {
+      throw new Error("Please choose a JPG, PNG, or WebP image.");
+    }
+
+    if (file.size > maxFileSize) {
+      throw new Error("Profile pictures must be 5 MB or smaller.");
+    }
+
+    const extensionByType: Record<string, string> = {
+      "image/jpeg": "jpg",
+      "image/png": "png",
+      "image/webp": "webp",
+    };
+    const filePath = `${id}/profile-${Date.now()}.${extensionByType[file.type]}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from("profile-pictures")
+      .upload(filePath, file, {
+        cacheControl: "3600",
+        contentType: file.type,
+        upsert: false,
+      });
+
+    if (uploadError) {
+      throw new Error(uploadError.message || "Failed to upload profile picture.");
+    }
+
+    const { data: publicUrlData } = supabase.storage
+      .from("profile-pictures")
+      .getPublicUrl(filePath);
+
+    const { data: currentUser } = await supabase
+      .from("users")
+      .select("profile_picture_path")
+      .eq("id", id)
+      .maybeSingle();
+
+    const { data, error } = await supabase
+      .from("users")
+      .update({
+        profile_picture_url: publicUrlData.publicUrl,
+        profile_picture_path: filePath,
+      })
+      .eq("id", id)
+      .select("*")
+      .single();
+
+    if (error) {
+      await supabase.storage.from("profile-pictures").remove([filePath]);
+      throw new Error(error.message || "Failed to save profile picture.");
+    }
+
+    const previousPath = currentUser?.profile_picture_path;
+    if (previousPath && previousPath !== filePath) {
+      await supabase.storage.from("profile-pictures").remove([previousPath]);
+    }
+
+    return data as User;
+  },
+
   // ===============================
   // GET ALL USERS (Admin)
   // ===============================
