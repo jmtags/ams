@@ -1,5 +1,19 @@
 import { supabase } from "../lib/supabase";
 
+export type TodayOverview = {
+  date: string;
+  shiftId: string;
+  shiftName: string;
+  startTime: string;
+  endTime: string;
+  graceMinutes: number;
+  locationId: string | null;
+  isHoliday: boolean;
+  holidayName: string | null;
+  holidayType: string | null;
+  isRestDay: boolean;
+};
+
 const mapAttendance = (record: any) => ({
   id: record.id,
   userId: record.user_id,
@@ -246,6 +260,42 @@ function getShiftSchedule(date: string, shift: any) {
 }
 
 export const attendanceService = {
+  async getTodayOverview(userId: string): Promise<TodayOverview | null> {
+    const today = getPHDate();
+
+    try {
+      const shift = await getUserShift(userId, today);
+      const dayContext = await getDayContext(
+        userId,
+        today,
+        shift.location_id ?? null
+      );
+
+      return {
+        date: today,
+        shiftId: shift.id,
+        shiftName: shift.name,
+        startTime: shift.start_time,
+        endTime: shift.end_time,
+        graceMinutes: shift.grace_minutes ?? 0,
+        locationId: shift.location_id ?? null,
+        isHoliday: dayContext.isHoliday,
+        holidayName: dayContext.holidayName,
+        holidayType: dayContext.holidayType,
+        isRestDay: dayContext.isRestDay,
+      };
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        error.message === "User has no assigned shift."
+      ) {
+        return null;
+      }
+
+      throw error;
+    }
+  },
+
   async clockIn(userId: string, locationId: string) {
     const today = getPHDate();
     const now = getPHNow();

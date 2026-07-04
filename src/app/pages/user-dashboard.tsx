@@ -18,6 +18,16 @@ import {
   LoaderCircle,
   Pause,
   Play,
+  CalendarDays,
+  Wallet,
+  CalendarClock,
+  UserRound,
+  MapPin,
+  BriefcaseBusiness,
+  RefreshCw,
+  X,
+  CircleAlert,
+  Timer,
 } from 'lucide-react';
 import { useNavigate } from "react-router";
 import { useAuth } from '../hooks/useAuth';
@@ -39,6 +49,7 @@ import {
   TableRow,
 } from '../components/ui/table';
 import { Badge } from '../components/ui/badge';
+import { Skeleton } from '../components/ui/skeleton';
 import {
   Avatar,
   AvatarFallback,
@@ -53,7 +64,10 @@ import {
   DialogBody,
   DialogFooter,
 } from '../components/ui/dialog';
-import { attendanceService } from "../services/attendance.service";
+import {
+  attendanceService,
+  type TodayOverview,
+} from "../services/attendance.service";
 import { attendanceActivityLogService } from "../services/attendance-activity-log.service";
 import { locationService } from "../services/location.service";
 import { attendanceAdjustmentRequestService } from "../services/attendance-adjustment-request.service";
@@ -118,6 +132,70 @@ function combineDateAndTime(date: string, time: string) {
   return `${date}T${time}:00+08:00`;
 }
 
+function formatShiftTime(time?: string | null) {
+  if (!time) return "--:--";
+  const [hourString, minute = "00"] = time.split(":");
+  const hour = Number(hourString);
+  const suffix = hour >= 12 ? "PM" : "AM";
+  const displayHour = hour % 12 || 12;
+  return `${displayHour}:${minute} ${suffix}`;
+}
+
+function formatMinuteDuration(totalMinutes: number) {
+  const safeMinutes = Math.max(0, Math.round(totalMinutes));
+  const hours = Math.floor(safeMinutes / 60);
+  const minutes = safeMinutes % 60;
+
+  if (hours === 0) return `${minutes} min`;
+  if (minutes === 0) return `${hours} hr${hours === 1 ? "" : "s"}`;
+  return `${hours} hr ${minutes} min`;
+}
+
+function getShiftTimingLabel(
+  overview: TodayOverview | null,
+  attendance: AttendanceRecord | null,
+  now: Date
+) {
+  if (!overview) return "No shift assigned";
+  if (overview.isHoliday && overview.isRestDay) return "Holiday and rest day";
+  if (overview.isHoliday) return "Holiday today";
+  if (overview.isRestDay) return "Scheduled rest day";
+  if (attendance?.clockOut) return "Shift completed";
+
+  const start = new Date(
+    `${overview.date}T${overview.startTime}+08:00`
+  );
+  let end = new Date(`${overview.date}T${overview.endTime}+08:00`);
+  if (end <= start) {
+    end = new Date(end.getTime() + 24 * 60 * 60 * 1000);
+  }
+
+  const minutesUntilStart = (start.getTime() - now.getTime()) / 60000;
+  const minutesUntilEnd = (end.getTime() - now.getTime()) / 60000;
+
+  if (attendance?.clockIn) {
+    return minutesUntilEnd > 0
+      ? `${formatMinuteDuration(minutesUntilEnd)} remaining`
+      : `Shift ended ${formatMinuteDuration(-minutesUntilEnd)} ago`;
+  }
+
+  if (minutesUntilStart > 0) {
+    return `Starts in ${formatMinuteDuration(minutesUntilStart)}`;
+  }
+
+  const graceEnds = new Date(
+    start.getTime() + overview.graceMinutes * 60 * 1000
+  );
+  const minutesUntilGraceEnds =
+    (graceEnds.getTime() - now.getTime()) / 60000;
+
+  if (minutesUntilGraceEnds > 0) {
+    return `Grace period · ${formatMinuteDuration(minutesUntilGraceEnds)} left`;
+  }
+
+  return `${formatMinuteDuration(-minutesUntilGraceEnds)} late`;
+}
+
 export function UserDashboardPage() {
   const { user, updateUser } = useAuth();
   const navigate = useNavigate();
@@ -126,9 +204,14 @@ export function UserDashboardPage() {
 
   const [attendanceHistory, setAttendanceHistory] = useState<AttendanceRecord[]>([]);
   const [todayAttendance, setTodayAttendance] = useState<AttendanceRecord | null>(null);
+  const [todayOverview, setTodayOverview] = useState<TodayOverview | null>(null);
   const [locations, setLocations] = useState<Location[]>([]);
 
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
+  const [isProfileReminderDismissed, setIsProfileReminderDismissed] =
+    useState(false);
 
   const [error, setError] = useState('');
   const [isUploadingProfilePicture, setIsUploadingProfilePicture] =
@@ -229,7 +312,7 @@ export function UserDashboardPage() {
     }
   };
 
-  const loadAnnouncements = async () => {
+  const loadAnnouncements = async (showPopup = true) => {
     if (!user?.id) return;
 
     try {
@@ -245,7 +328,11 @@ export function UserDashboardPage() {
       setExpandedAnnouncementIds([]);
       setIsAnnouncementCarouselPaused(false);
 
-      if (config.showAnnouncementPopup && activeAnnouncements.length > 0) {
+      if (
+        showPopup &&
+        config.showAnnouncementPopup &&
+        activeAnnouncements.length > 0
+      ) {
         setIsAnnouncementDialogOpen(true);
       }
     } catch (err) {
@@ -267,26 +354,35 @@ export function UserDashboardPage() {
     }
   };
 
-  const loadAllData = async () => {
+  const loadAllData = async (manualRefresh = false) => {
     if (!user?.id) return;
 
     try {
-      setIsLoading(true);
+      if (manualRefresh) {
+        setIsRefreshing(true);
+      } else {
+        setIsLoading(true);
+      }
       setError('');
 
-      const [history, today, locs] = await Promise.all([
+      const [history, today, locs, overview] = await Promise.all([
         attendanceService.getAttendanceHistory(user.id, 10),
         attendanceService.getTodayAttendance(user.id),
         locationService.getAllLocations(),
+        attendanceService.getTodayOverview(user.id).catch((overviewError) => {
+          console.error("Error loading today's overview:", overviewError);
+          return null;
+        }),
       ]);
 
       setAttendanceHistory(history);
       setTodayAttendance(today);
       setLocations(locs);
+      setTodayOverview(overview);
 
       await Promise.all([
         loadTodayShiftRequirementAndLogs(user.id),
-        loadAnnouncements(),
+        loadAnnouncements(!manualRefresh),
         loadPolicyNotifications(user.id),
       ]);
 
@@ -300,10 +396,15 @@ export function UserDashboardPage() {
       setPendingRequestAttendanceIds(
         pendingChecks.filter((id): id is string => Boolean(id))
       );
+      setLastUpdatedAt(new Date());
     } catch (err: any) {
       setError(err.message || 'Failed to load dashboard data.');
     } finally {
-      setIsLoading(false);
+      if (manualRefresh) {
+        setIsRefreshing(false);
+      } else {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -311,13 +412,18 @@ export function UserDashboardPage() {
     if (!user?.id) return;
 
     try {
-      const [history, today] = await Promise.all([
+      const [history, today, overview] = await Promise.all([
         attendanceService.getAttendanceHistory(user.id, 10),
         attendanceService.getTodayAttendance(user.id),
+        attendanceService.getTodayOverview(user.id).catch((overviewError) => {
+          console.error("Error refreshing today's overview:", overviewError);
+          return null;
+        }),
       ]);
 
       setAttendanceHistory(history);
       setTodayAttendance(today);
+      setTodayOverview(overview);
 
       await loadTodayShiftRequirementAndLogs(user.id);
 
@@ -331,19 +437,31 @@ export function UserDashboardPage() {
       setPendingRequestAttendanceIds(
         pendingChecks.filter((id): id is string => Boolean(id))
       );
+      setLastUpdatedAt(new Date());
     } catch (err) {
       console.error("Error loading attendance:", err);
     }
   };
 
   const handleClockIn = async () => {
-    if (!user?.id || !locations?.length) return;
+    if (!user?.id) return;
+
+    const clockInLocationId =
+      todayOverview?.locationId ?? locations?.[0]?.id ?? null;
+
+    if (!clockInLocationId) {
+      setError("Your shift does not have an assigned clock-in location.");
+      return;
+    }
 
     try {
       setIsLoading(true);
       setError('');
 
-      const record = await attendanceService.clockIn(user.id, locations[0].id);
+      const record = await attendanceService.clockIn(
+        user.id,
+        clockInLocationId
+      );
       setTodayAttendance(record);
       await loadAttendance();
     } catch (err: any) {
@@ -607,6 +725,61 @@ export function UserDashboardPage() {
     : todayAttendance?.clockIn
     ? "Currently clocked in"
     : "Ready to clock in";
+  const assignedLocation =
+    locations.find((location) => location.id === todayOverview?.locationId) ??
+    null;
+  const shiftTimingLabel = getShiftTimingLabel(
+    todayOverview,
+    todayAttendance,
+    currentTime
+  );
+  const missingProfileFields = [
+    !user?.profile_picture_url ? "profile photo" : null,
+    !user?.sss?.trim() ? "SSS number" : null,
+    !user?.pagibig?.trim() ? "Pag-IBIG number" : null,
+    !user?.philhealth?.trim() ? "PhilHealth number" : null,
+    !user?.atm_number?.trim() ? "ATM number" : null,
+  ].filter((field): field is string => Boolean(field));
+  const isProfilePhotoMissing = !user?.profile_picture_url;
+  const hasMissingProfileDetails = missingProfileFields.some(
+    (field) => field !== "profile photo"
+  );
+  const quickLinks = [
+    { label: "Leave", href: "/my-leave", icon: CalendarDays },
+    { label: "Payroll", href: "/my-payroll", icon: Wallet },
+    { label: "Policies", href: "/policies", icon: BookOpen },
+    {
+      label: "Shift Change",
+      href: "/shift-change-requests",
+      icon: CalendarClock,
+    },
+    { label: "Profile", href: "/profile", icon: UserRound },
+  ];
+  const isInitialLoading = isLoading && !lastUpdatedAt;
+
+  if (isInitialLoading) {
+    return (
+      <UserLayout>
+        <div
+          className="mx-auto w-full max-w-7xl space-y-5 sm:space-y-6"
+          aria-label="Loading employee dashboard"
+          aria-busy="true"
+        >
+          <Skeleton className="h-52 w-full rounded-3xl" />
+          <div className="grid grid-cols-5 gap-2 sm:gap-3">
+            {Array.from({ length: 5 }).map((_, index) => (
+              <Skeleton key={index} className="h-20 rounded-2xl" />
+            ))}
+          </div>
+          <Skeleton className="h-36 w-full rounded-2xl" />
+          <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1.65fr)_minmax(280px,0.65fr)]">
+            <Skeleton className="h-96 rounded-2xl" />
+            <Skeleton className="h-96 rounded-2xl" />
+          </div>
+        </div>
+      </UserLayout>
+    );
+  }
 
   return (
     <UserLayout>
@@ -697,6 +870,21 @@ export function UserDashboardPage() {
                   })}
                 </p>
               </div>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => loadAllData(true)}
+                disabled={isRefreshing}
+                className="border-white/20 bg-white/10 text-white hover:bg-white/20"
+                aria-label="Refresh dashboard data"
+              >
+                <RefreshCw
+                  className={`mr-2 h-4 w-4 ${
+                    isRefreshing ? "animate-spin" : ""
+                  }`}
+                />
+                {isRefreshing ? "Refreshing..." : "Refresh"}
+              </Button>
               {unseenPolicyDocuments.length > 0 && (
                 <Button
                   type="button"
@@ -727,7 +915,158 @@ export function UserDashboardPage() {
               )}
             </div>
           </div>
+          {lastUpdatedAt && (
+            <p className="relative mt-4 text-right text-xs text-neutral-400">
+              Last updated{" "}
+              {lastUpdatedAt.toLocaleTimeString("en-US", {
+                hour: "numeric",
+                minute: "2-digit",
+                second: "2-digit",
+              })}
+            </p>
+          )}
         </div>
+
+        {missingProfileFields.length > 0 && !isProfileReminderDismissed && (
+          <div className="flex flex-col gap-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+            <div className="flex min-w-0 gap-3">
+              <CircleAlert className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" />
+              <div>
+                <p className="font-medium text-amber-950">
+                  Your profile is {5 - missingProfileFields.length} of 5 complete
+                </p>
+                <p className="mt-1 text-sm text-amber-800">
+                  Add your {missingProfileFields.join(", ")} to complete your
+                  employee profile.
+                </p>
+              </div>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              {isProfilePhotoMissing && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={hasMissingProfileDetails ? "outline" : "default"}
+                  onClick={() => profilePictureInputRef.current?.click()}
+                >
+                  Upload Photo
+                </Button>
+              )}
+              {hasMissingProfileDetails && (
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => navigate("/profile")}
+                >
+                  Complete Details
+                </Button>
+              )}
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                onClick={() => setIsProfileReminderDismissed(true)}
+                aria-label="Dismiss profile reminder"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        )}
+
+        <nav
+          aria-label="Employee quick links"
+          className="grid grid-cols-5 gap-2 sm:gap-3"
+        >
+          {quickLinks.map((link) => {
+            const Icon = link.icon;
+            return (
+              <button
+                key={link.href}
+                type="button"
+                onClick={() => navigate(link.href)}
+                className="group flex min-w-0 flex-col items-center justify-center gap-2 rounded-2xl border border-neutral-200 bg-white px-2 py-3 text-center shadow-sm transition hover:-translate-y-0.5 hover:border-neutral-300 hover:shadow-md sm:flex-row sm:justify-start sm:px-4"
+              >
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700 transition group-hover:bg-neutral-900 group-hover:text-white">
+                  <Icon className="h-4 w-4" />
+                </span>
+                <span className="truncate text-[11px] font-medium text-neutral-700 sm:text-sm">
+                  {link.label}
+                </span>
+              </button>
+            );
+          })}
+        </nav>
+
+        <Card className="overflow-hidden rounded-2xl border-neutral-200/80 shadow-sm">
+          <CardHeader className="border-b border-neutral-100 p-5 sm:p-6">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <CardTitle className="flex items-center gap-2 text-lg font-semibold">
+                  <BriefcaseBusiness className="h-5 w-5" />
+                  My Day
+                </CardTitle>
+                <CardDescription>
+                  Today&apos;s assigned schedule and workday status
+                </CardDescription>
+              </div>
+              {todayOverview?.shiftName && (
+                <Badge variant="default">{todayOverview.shiftName}</Badge>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 gap-3 p-5 sm:grid-cols-2 sm:p-6 lg:grid-cols-4">
+            <div className="rounded-xl bg-neutral-50 p-4">
+              <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-neutral-500">
+                <Clock className="h-4 w-4" />
+                Shift hours
+              </div>
+              <p className="mt-2 font-semibold text-neutral-950">
+                {todayOverview
+                  ? `${formatShiftTime(todayOverview.startTime)} – ${formatShiftTime(
+                      todayOverview.endTime
+                    )}`
+                  : "Not assigned"}
+              </p>
+            </div>
+
+            <div className="rounded-xl bg-neutral-50 p-4">
+              <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-neutral-500">
+                <MapPin className="h-4 w-4" />
+                Location
+              </div>
+              <p className="mt-2 font-semibold text-neutral-950">
+                {assignedLocation?.name || "Not assigned"}
+              </p>
+            </div>
+
+            <div className="rounded-xl bg-neutral-50 p-4">
+              <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-neutral-500">
+                <CalendarDays className="h-4 w-4" />
+                Day status
+              </div>
+              <p className="mt-2 font-semibold text-neutral-950">
+                {todayOverview?.isHoliday && todayOverview?.isRestDay
+                  ? `${todayOverview.holidayName || "Holiday"} · Rest day`
+                  : todayOverview?.isHoliday
+                  ? todayOverview.holidayName || "Holiday"
+                  : todayOverview?.isRestDay
+                  ? "Rest day"
+                  : todayOverview
+                  ? "Regular workday"
+                  : "Unavailable"}
+              </p>
+            </div>
+
+            <div className="rounded-xl bg-neutral-950 p-4 text-white">
+              <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-neutral-400">
+                <Timer className="h-4 w-4" />
+                Live indicator
+              </div>
+              <p className="mt-2 font-semibold">{shiftTimingLabel}</p>
+            </div>
+          </CardContent>
+        </Card>
 
         <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1.65fr)_minmax(280px,0.65fr)]">
           <Card className="overflow-hidden rounded-2xl border-neutral-200/80 shadow-sm">
