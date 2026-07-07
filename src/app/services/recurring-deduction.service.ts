@@ -23,6 +23,18 @@ export type RecurringDeduction = {
   user_email?: string | null;
 };
 
+export type RecurringDeductionAttachment = {
+  id: string;
+  recurring_deduction_id: string;
+  file_url: string;
+  file_name: string;
+  file_size: number | null;
+  file_type: string | null;
+  storage_path: string;
+  uploaded_by: string | null;
+  created_at: string;
+};
+
 export type SaveRecurringDeductionPayload = {
   user_id: string;
   adjustment_type?: "addition" | "deduction";
@@ -39,6 +51,16 @@ export type SaveRecurringDeductionPayload = {
   is_active?: boolean;
   notes?: string | null;
 };
+
+const ATTACHMENT_BUCKET = "recurring-deduction-attachments";
+const MAX_ATTACHMENT_SIZE = 20 * 1024 * 1024;
+const ALLOWED_ATTACHMENT_TYPES = new Set([
+  "application/pdf",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/msword",
+  "text/plain",
+]);
+const ALLOWED_ATTACHMENT_EXTENSIONS = new Set(["pdf", "doc", "docx", "txt"]);
 
 const mapRecurringDeduction = (row: any): RecurringDeduction => ({
   id: row.id,
@@ -57,6 +79,70 @@ const mapRecurringDeduction = (row: any): RecurringDeduction => ({
   user_name: row.users?.name ?? "",
   user_email: row.users?.email ?? null,
 });
+
+const getFileExtension = (fileName: string) =>
+  fileName.split(".").pop()?.toLowerCase() ?? "";
+
+const validateAttachment = (file: File) => {
+  const extension = getFileExtension(file.name);
+
+  if (
+    !ALLOWED_ATTACHMENT_TYPES.has(file.type) &&
+    !ALLOWED_ATTACHMENT_EXTENSIONS.has(extension)
+  ) {
+    throw new Error("Attachments must be PDF, DOC, DOCX, or TXT files.");
+  }
+
+  if (file.size > MAX_ATTACHMENT_SIZE) {
+    throw new Error("Attachments must be 20 MB or smaller.");
+  }
+};
+
+const uploadAttachmentFile = async (
+  recurringDeductionId: string,
+  file: File
+) => {
+  validateAttachment(file);
+
+  const extension = getFileExtension(file.name) || "file";
+  const safeName = file.name
+    .replace(/\.[^.]+$/i, "")
+    .replace(/[^a-zA-Z0-9_-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60);
+  const storagePath = `${recurringDeductionId}/${Date.now()}-${crypto.randomUUID()}-${
+    safeName || "attachment"
+  }.${extension}`;
+
+  const { error } = await supabase.storage
+    .from(ATTACHMENT_BUCKET)
+    .upload(storagePath, file, {
+      cacheControl: "3600",
+      contentType: file.type || undefined,
+      upsert: false,
+    });
+
+  if (error) {
+    throw new Error(error.message || "Failed to upload attachment.");
+  }
+
+  const { data } = supabase.storage
+    .from(ATTACHMENT_BUCKET)
+    .getPublicUrl(storagePath);
+
+  return {
+    fileUrl: data.publicUrl,
+    storagePath,
+    fileName: file.name,
+    fileSize: file.size,
+    fileType: file.type || extension,
+  };
+};
+
+const removeStoredAttachment = async (storagePath?: string | null) => {
+  if (!storagePath) return;
+  await supabase.storage.from(ATTACHMENT_BUCKET).remove([storagePath]);
+};
 
 export const recurringDeductionService = {
   async getAll(): Promise<RecurringDeduction[]> {
@@ -157,5 +243,67 @@ export const recurringDeductionService = {
       .eq("id", id);
 
     if (error) throw error;
+  },
+
+  async getAttachments(
+    recurringDeductionId: string
+  ): Promise<RecurringDeductionAttachment[]> {
+    const { data, error } = await supabase
+      .from("employee_recurring_deduction_attachments")
+      .select("*")
+      .eq("recurring_deduction_id", recurringDeductionId)
+      .order("created_at", { ascending: false });
+
+    if (error) throw error;
+    return (data ?? []) as RecurringDeductionAttachment[];
+  },
+
+  async addAttachments(
+    recurringDeductionId: string,
+    files: File[],
+    uploadedBy?: string | null
+  ): Promise<RecurringDeductionAttachment[]> {
+    if (!files.length) return [];
+
+    const created: RecurringDeductionAttachment[] = [];
+
+    for (const file of files) {
+      const uploaded = await uploadAttachmentFile(recurringDeductionId, file);
+
+      const { data, error } = await supabase
+        .from("employee_recurring_deduction_attachments")
+        .insert({
+          recurring_deduction_id: recurringDeductionId,
+          file_url: uploaded.fileUrl,
+          file_name: uploaded.fileName,
+          file_size: uploaded.fileSize,
+          file_type: uploaded.fileType,
+          storage_path: uploaded.storagePath,
+          uploaded_by: uploadedBy ?? null,
+        })
+        .select()
+        .single();
+
+      if (error) {
+        await removeStoredAttachment(uploaded.storagePath);
+        throw error;
+      }
+
+      created.push(data as RecurringDeductionAttachment);
+    }
+
+    return created;
+  },
+
+  async deleteAttachment(
+    attachment: RecurringDeductionAttachment
+  ): Promise<void> {
+    const { error } = await supabase
+      .from("employee_recurring_deduction_attachments")
+      .delete()
+      .eq("id", attachment.id);
+
+    if (error) throw error;
+    await removeStoredAttachment(attachment.storage_path);
   },
 };

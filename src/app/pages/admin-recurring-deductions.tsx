@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Plus, Pencil, Trash2, RefreshCw } from "lucide-react";
+import { Eye, FileText, Plus, Pencil, Trash2, RefreshCw, X } from "lucide-react";
 
 import { AdminLayout } from "../layouts/admin-layout";
 import { Button } from "../components/ui/button";
@@ -34,7 +34,9 @@ import { userService, type User } from "../services/user.service";
 import {
   recurringDeductionService,
   type RecurringDeduction,
+  type RecurringDeductionAttachment,
 } from "../services/recurring-deduction.service";
+import { useAuth } from "../hooks/useAuth";
 
 type FormState = {
   user_id: string;
@@ -80,7 +82,28 @@ const currency = (value: number) =>
     maximumFractionDigits: 2,
   }).format(Number(value || 0));
 
+const formatFileSize = (bytes?: number | null) => {
+  if (!bytes) return "-";
+  return bytes >= 1024 * 1024
+    ? `${(bytes / 1024 / 1024).toFixed(1)} MB`
+    : `${Math.ceil(bytes / 1024)} KB`;
+};
+
+const getAttachmentKind = (attachment: RecurringDeductionAttachment) => {
+  const name = attachment.file_name.toLowerCase();
+  const type = attachment.file_type?.toLowerCase() ?? "";
+
+  if (type.includes("pdf") || name.endsWith(".pdf")) return "pdf";
+  if (type.includes("text") || name.endsWith(".txt")) return "text";
+  if (name.endsWith(".doc") || name.endsWith(".docx") || type.includes("word")) {
+    return "word";
+  }
+
+  return "other";
+};
+
 export function AdminRecurringDeductionsPage() {
+  const { user } = useAuth();
   const [records, setRecords] = useState<RecurringDeduction[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -94,6 +117,13 @@ export function AdminRecurringDeductionsPage() {
   const [editingRecord, setEditingRecord] = useState<RecurringDeduction | null>(null);
   const [form, setForm] = useState<FormState>(defaultForm);
   const [isSaving, setIsSaving] = useState(false);
+  const [attachments, setAttachments] = useState<RecurringDeductionAttachment[]>([]);
+  const [pendingAttachments, setPendingAttachments] = useState<File[]>([]);
+  const [deletingAttachmentId, setDeletingAttachmentId] = useState<string | null>(null);
+  const [viewerAttachment, setViewerAttachment] =
+    useState<RecurringDeductionAttachment | null>(null);
+  const [textPreview, setTextPreview] = useState("");
+  const [isLoadingTextPreview, setIsLoadingTextPreview] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -124,10 +154,12 @@ export function AdminRecurringDeductionsPage() {
       ...defaultForm,
       start_date: getTodayDate(),
     });
+    setAttachments([]);
+    setPendingAttachments([]);
     setIsDialogOpen(true);
   };
 
-  const openEditDialog = (record: RecurringDeduction) => {
+  const openEditDialog = async (record: RecurringDeduction) => {
     setEditingRecord(record);
     setForm({
       user_id: record.user_id,
@@ -141,7 +173,17 @@ export function AdminRecurringDeductionsPage() {
       is_active: Boolean(record.is_active),
       notes: record.notes ?? "",
     });
+    setPendingAttachments([]);
+    setAttachments([]);
     setIsDialogOpen(true);
+
+    try {
+      const data = await recurringDeductionService.getAttachments(record.id);
+      setAttachments(data);
+    } catch (error: any) {
+      console.error("Failed to load attachments:", error);
+      alert(error.message || "Failed to load attachments.");
+    }
   };
 
   const closeDialog = () => {
@@ -149,6 +191,17 @@ export function AdminRecurringDeductionsPage() {
     setIsDialogOpen(false);
     setEditingRecord(null);
     setForm(defaultForm);
+    setAttachments([]);
+    setPendingAttachments([]);
+  };
+
+  const handleAttachmentChange = (files?: FileList | null) => {
+    if (!files?.length) return;
+    setPendingAttachments((prev) => [...prev, ...Array.from(files)]);
+  };
+
+  const removePendingAttachment = (index: number) => {
+    setPendingAttachments((prev) => prev.filter((_, itemIndex) => itemIndex !== index));
   };
 
   const handleSubmit = async (e: FormEvent) => {
@@ -195,10 +248,20 @@ export function AdminRecurringDeductionsPage() {
         notes: form.notes.trim() || null,
       };
 
+      let savedRecord: RecurringDeduction;
+
       if (editingRecord) {
-        await recurringDeductionService.update(editingRecord.id, payload);
+        savedRecord = await recurringDeductionService.update(editingRecord.id, payload);
       } else {
-        await recurringDeductionService.create(payload);
+        savedRecord = await recurringDeductionService.create(payload);
+      }
+
+      if (pendingAttachments.length) {
+        await recurringDeductionService.addAttachments(
+          savedRecord.id,
+          pendingAttachments,
+          user?.id ?? null
+        );
       }
 
       await loadData();
@@ -226,6 +289,55 @@ export function AdminRecurringDeductionsPage() {
       alert(error.message || "Failed to delete recurring payroll item.");
     }
   };
+
+  const handleDeleteAttachment = async (attachment: RecurringDeductionAttachment) => {
+    if (!window.confirm(`Delete attachment "${attachment.file_name}"?`)) return;
+
+    try {
+      setDeletingAttachmentId(attachment.id);
+      await recurringDeductionService.deleteAttachment(attachment);
+      setAttachments((prev) => prev.filter((item) => item.id !== attachment.id));
+      if (viewerAttachment?.id === attachment.id) {
+        setViewerAttachment(null);
+      }
+    } catch (error: any) {
+      console.error("Failed to delete attachment:", error);
+      alert(error.message || "Failed to delete attachment.");
+    } finally {
+      setDeletingAttachmentId(null);
+    }
+  };
+
+  useEffect(() => {
+    if (!viewerAttachment || getAttachmentKind(viewerAttachment) !== "text") {
+      setTextPreview("");
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadTextPreview = async () => {
+      try {
+        setIsLoadingTextPreview(true);
+        const response = await fetch(viewerAttachment.file_url);
+        if (!response.ok) throw new Error("Failed to load text file.");
+        const text = await response.text();
+        if (!cancelled) setTextPreview(text);
+      } catch (error: any) {
+        if (!cancelled) {
+          setTextPreview(error.message || "Failed to load text file.");
+        }
+      } finally {
+        if (!cancelled) setIsLoadingTextPreview(false);
+      }
+    };
+
+    void loadTextPreview();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [viewerAttachment]);
 
   const filteredRecords = useMemo(() => {
     return records.filter((item) => {
@@ -671,6 +783,108 @@ export function AdminRecurringDeductionsPage() {
                       placeholder="Optional notes..."
                     />
                   </div>
+
+                  <div className="rounded-lg border border-neutral-200 p-4">
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-medium">Documents</p>
+                        <p className="text-xs text-neutral-500">
+                          Attach PDF, DOCX, DOC, or TXT files up to 20 MB each.
+                        </p>
+                      </div>
+                      <FileText className="h-5 w-5 text-neutral-400" />
+                    </div>
+
+                    <input
+                      type="file"
+                      multiple
+                      accept=".pdf,.doc,.docx,.txt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
+                      onChange={(event) => handleAttachmentChange(event.target.files)}
+                      className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm"
+                      disabled={isSaving}
+                    />
+
+                    {pendingAttachments.length > 0 && (
+                      <div className="mt-4 space-y-2">
+                        <p className="text-xs font-medium uppercase text-neutral-500">
+                          Pending upload
+                        </p>
+                        {pendingAttachments.map((file, index) => (
+                          <div
+                            key={`${file.name}-${file.lastModified}-${index}`}
+                            className="flex items-center justify-between gap-3 rounded border border-neutral-200 px-3 py-2 text-sm"
+                          >
+                            <div className="min-w-0">
+                              <p className="truncate font-medium">{file.name}</p>
+                              <p className="text-xs text-neutral-500">
+                                {formatFileSize(file.size)}
+                              </p>
+                            </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => removePendingAttachment(index)}
+                              disabled={isSaving}
+                              title="Remove pending attachment"
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {editingRecord && (
+                      <div className="mt-4 space-y-2">
+                        <p className="text-xs font-medium uppercase text-neutral-500">
+                          Saved documents
+                        </p>
+                        {attachments.length === 0 ? (
+                          <p className="rounded border border-dashed border-neutral-200 px-3 py-4 text-center text-sm text-neutral-500">
+                            No documents attached.
+                          </p>
+                        ) : (
+                          attachments.map((attachment) => (
+                            <div
+                              key={attachment.id}
+                              className="flex items-center justify-between gap-3 rounded border border-neutral-200 px-3 py-2 text-sm"
+                            >
+                              <div className="min-w-0">
+                                <p className="truncate font-medium">
+                                  {attachment.file_name}
+                                </p>
+                                <p className="text-xs text-neutral-500">
+                                  {formatFileSize(attachment.file_size)}
+                                </p>
+                              </div>
+                              <div className="flex shrink-0 gap-1">
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => setViewerAttachment(attachment)}
+                                  title="View document"
+                                >
+                                  <Eye className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  disabled={deletingAttachmentId === attachment.id}
+                                  onClick={() => void handleDeleteAttachment(attachment)}
+                                  title="Delete attachment"
+                                >
+                                  <Trash2 className="h-4 w-4 text-red-600" />
+                                </Button>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </DialogBody>
 
@@ -688,6 +902,93 @@ export function AdminRecurringDeductionsPage() {
                 </Button>
               </DialogFooter>
             </form>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog
+          open={Boolean(viewerAttachment)}
+          onOpenChange={(open) => !open && setViewerAttachment(null)}
+        >
+          <DialogContent
+            className="max-w-5xl h-[90vh] overflow-hidden flex flex-col"
+            onClose={() => setViewerAttachment(null)}
+          >
+            <DialogHeader className="shrink-0">
+              <DialogTitle>{viewerAttachment?.file_name ?? "Document"}</DialogTitle>
+              <DialogDescription>
+                {viewerAttachment
+                  ? `${formatFileSize(viewerAttachment.file_size)} attachment`
+                  : ""}
+              </DialogDescription>
+            </DialogHeader>
+
+            <DialogBody className="min-h-0 flex-1 overflow-hidden">
+              {viewerAttachment && getAttachmentKind(viewerAttachment) === "pdf" && (
+                <iframe
+                  src={viewerAttachment.file_url}
+                  title={viewerAttachment.file_name}
+                  className="h-full w-full rounded border border-neutral-200"
+                />
+              )}
+
+              {viewerAttachment && getAttachmentKind(viewerAttachment) === "text" && (
+                <pre className="h-full overflow-auto rounded border border-neutral-200 bg-neutral-50 p-4 text-sm whitespace-pre-wrap">
+                  {isLoadingTextPreview ? "Loading text file..." : textPreview}
+                </pre>
+              )}
+
+              {viewerAttachment && getAttachmentKind(viewerAttachment) === "word" && (
+                <iframe
+                  src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(
+                    viewerAttachment.file_url
+                  )}`}
+                  title={viewerAttachment.file_name}
+                  className="h-full w-full rounded border border-neutral-200"
+                />
+              )}
+
+              {viewerAttachment && getAttachmentKind(viewerAttachment) === "other" && (
+                <div className="flex h-full flex-col items-center justify-center gap-3 rounded border border-dashed border-neutral-300 text-center">
+                  <FileText className="h-8 w-8 text-neutral-400" />
+                  <p className="text-sm text-neutral-600">
+                    Preview is not available for this file type.
+                  </p>
+                  <Button
+                    type="button"
+                    onClick={() =>
+                      window.open(
+                        viewerAttachment.file_url,
+                        "_blank",
+                        "noopener,noreferrer"
+                      )
+                    }
+                  >
+                    Open Document
+                  </Button>
+                </div>
+              )}
+            </DialogBody>
+
+            <DialogFooter className="shrink-0">
+              {viewerAttachment && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() =>
+                    window.open(
+                      viewerAttachment.file_url,
+                      "_blank",
+                      "noopener,noreferrer"
+                    )
+                  }
+                >
+                  Open in New Tab
+                </Button>
+              )}
+              <Button type="button" onClick={() => setViewerAttachment(null)}>
+                Close
+              </Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
       </div>
