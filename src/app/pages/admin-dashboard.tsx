@@ -681,7 +681,10 @@ export function AdminDashboardPage() {
             </CardHeader>
 
             <CardContent>
-              <Table>
+              <Table
+                containerClassName="max-h-[70vh]"
+                className="min-w-[1100px]"
+              >
                 <TableHeader>
                   <TableRow>
                     <TableHead>Employee</TableHead>
@@ -735,7 +738,10 @@ export function AdminDashboardPage() {
           </CardHeader>
 
           <CardContent>
-            <Table>
+            <Table
+              containerClassName="max-h-[70vh]"
+              className="min-w-[1400px]"
+            >
               <TableHeader>
                 <TableRow>
                   <TableHead>Employee</TableHead>
