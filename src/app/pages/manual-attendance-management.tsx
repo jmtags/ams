@@ -261,12 +261,15 @@ export function ManualAttendanceManagementPage() {
       if (clockOutISO && scheduledEnd) {
         const actualClockOut = new Date(clockOutISO);
         const shiftEnd = new Date(scheduledEnd);
-        shiftEnd.setMinutes(
-          shiftEnd.getMinutes() + (selectedShift.overtime_after_minutes ?? 0)
+        const overtimeThreshold = new Date(
+          shiftEnd.getTime() +
+            (selectedShift.overtime_after_minutes ?? 0) * 60000
         );
 
-        minutesOvertime = getMinutesDifference(actualClockOut, shiftEnd);
-        isOvertime = minutesOvertime > 0;
+        isOvertime = actualClockOut > overtimeThreshold;
+        minutesOvertime = isOvertime
+          ? getMinutesDifference(actualClockOut, shiftEnd)
+          : 0;
       }
     }
 

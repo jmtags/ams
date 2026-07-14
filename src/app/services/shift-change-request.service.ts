@@ -187,10 +187,11 @@ async function applyApprovedShiftToAttendance(request: ShiftChangeRequest) {
   }
 
   if (clockOut && shiftEnd) {
-    const overtimeStart = new Date(
+    const overtimeThreshold = new Date(
       shiftEnd.getTime() + Number(shift.overtime_after_minutes ?? 0) * 60000
     );
-    minutesOvertime = getMinutesDifference(clockOut, overtimeStart);
+    minutesOvertime =
+      clockOut > overtimeThreshold ? getMinutesDifference(clockOut, shiftEnd) : 0;
   }
 
   const isLate = minutesLate > 0;

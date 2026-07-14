@@ -222,12 +222,14 @@ export const attendanceAdjustmentService = {
       if (payload.approved_clock_out && scheduledEnd) {
         const actualClockOut = new Date(payload.approved_clock_out);
         const shiftEnd = new Date(scheduledEnd);
-        shiftEnd.setMinutes(
-          shiftEnd.getMinutes() + (shift.overtime_after_minutes ?? 0)
+        const overtimeThreshold = new Date(
+          shiftEnd.getTime() + (shift.overtime_after_minutes ?? 0) * 60000
         );
 
-        minutesOvertime = getMinutesDifference(actualClockOut, shiftEnd);
-        isOvertime = minutesOvertime > 0;
+        isOvertime = actualClockOut > overtimeThreshold;
+        minutesOvertime = isOvertime
+          ? getMinutesDifference(actualClockOut, shiftEnd)
+          : 0;
       }
     }
 

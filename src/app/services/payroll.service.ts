@@ -237,10 +237,8 @@ const getAttendanceOvertimeMinutes = (row: any) => {
   if (!markedOvertime) return 0;
 
   const overtimeAfterMinutes = Number(row.shifts?.overtime_after_minutes ?? 0);
-  return Math.max(
-    0,
-    diffMinutes(row.scheduled_end, row.clock_out) - overtimeAfterMinutes
-  );
+  const rawOvertimeMinutes = diffMinutes(row.scheduled_end, row.clock_out);
+  return rawOvertimeMinutes > overtimeAfterMinutes ? rawOvertimeMinutes : 0;
 };
 
 const getAttendanceLateMinutes = (row: any) => {

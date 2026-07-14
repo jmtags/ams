@@ -73,13 +73,14 @@ function diffMinutes(
 }
 
 function getRenderedOvertimeMinutes(row: OvertimeApprovalRow) {
-  if (row.minutes_overtime > 0) return row.minutes_overtime;
+  const recordedMinutes = Number(row.minutes_overtime ?? 0);
+  const rawOvertimeMinutes = diffMinutes(row.scheduled_end, row.clock_out);
 
   const overtimeAfterMinutes = Number(row.shifts?.overtime_after_minutes ?? 0);
-  return Math.max(
-    0,
-    diffMinutes(row.scheduled_end, row.clock_out) - overtimeAfterMinutes
-  );
+  const qualifiesForOvertime =
+    recordedMinutes > 0 || rawOvertimeMinutes > overtimeAfterMinutes;
+
+  return qualifiesForOvertime ? Math.max(recordedMinutes, rawOvertimeMinutes) : 0;
 }
 
 export function OvertimeApprovalsPage() {

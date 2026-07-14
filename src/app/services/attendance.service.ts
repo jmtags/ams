@@ -466,9 +466,7 @@ export const attendanceService = {
     );
 
     const isOvertime = now > overtimeThreshold;
-    const minutesOvertime = isOvertime
-      ? diffMinutes(overtimeThreshold, now)
-      : 0;
+    const minutesOvertime = isOvertime ? diffMinutes(scheduledEnd, now) : 0;
 
     const status = resolveAttendanceStatus({
       worked: true,
