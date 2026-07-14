@@ -219,6 +219,20 @@ const diffMinutes = (
   return Math.max(0, Math.round((endTime - startTime) / 60000));
 };
 
+const getPayrollClockIn = (row: any) => {
+  if (!row.clock_in || !row.scheduled_start) return row.clock_in;
+
+  const graceMinutes = Number(row.shifts?.grace_minutes ?? 0);
+  if (graceMinutes <= 0) return row.clock_in;
+
+  const lateMinutes = diffMinutes(row.scheduled_start, row.clock_in);
+  if (lateMinutes > 0 && lateMinutes <= graceMinutes) {
+    return row.scheduled_start;
+  }
+
+  return row.clock_in;
+};
+
 const getAttendanceOvertimeMinutes = (row: any) => {
   const overtimeStatus = row.overtime_status ?? "pending";
   const approvedMinutes = Number(row.approved_overtime_minutes ?? 0);
@@ -242,8 +256,11 @@ const getAttendanceOvertimeMinutes = (row: any) => {
 };
 
 const getAttendanceLateMinutes = (row: any) => {
-  const recordedMinutes = Number(row.minutes_late ?? 0);
-  if (recordedMinutes > 0) return recordedMinutes;
+  const graceMinutes = Number(row.shifts?.grace_minutes ?? 0);
+  const actualLateMinutes = diffMinutes(row.scheduled_start, row.clock_in);
+  if (actualLateMinutes > 0) {
+    return Math.max(0, actualLateMinutes - graceMinutes);
+  }
 
   const status = String(row.status ?? "").toLowerCase();
   const markedLate =
@@ -251,11 +268,8 @@ const getAttendanceLateMinutes = (row: any) => {
 
   if (!markedLate) return 0;
 
-  const graceMinutes = Number(row.shifts?.grace_minutes ?? 0);
-  return Math.max(
-    0,
-    diffMinutes(row.scheduled_start, row.clock_in) - graceMinutes
-  );
+  const recordedMinutes = Number(row.minutes_late ?? 0);
+  return Math.max(0, recordedMinutes - graceMinutes);
 };
 
 const getPartTimeBreakMinutes = (elapsedMinutes: number) => {
@@ -265,10 +279,10 @@ const getPartTimeBreakMinutes = (elapsedMinutes: number) => {
 };
 
 const getPartTimeAttendanceBreakMinutes = (row: any) =>
-  getPartTimeBreakMinutes(diffMinutes(row.clock_in, row.clock_out));
+  getPartTimeBreakMinutes(diffMinutes(getPayrollClockIn(row), row.clock_out));
 
 const getAttendanceElapsedMinutes = (row: any) => {
-  const actualMinutes = diffMinutes(row.clock_in, row.clock_out);
+  const actualMinutes = diffMinutes(getPayrollClockIn(row), row.clock_out);
   if (actualMinutes > 0) return actualMinutes;
   if (row.clock_in && !row.clock_out) {
     return diffMinutes(row.scheduled_start, row.scheduled_end);
@@ -299,7 +313,7 @@ const getRegularAttendanceWorkMinutes = (
 };
 
 const getPartTimeRegularWorkMinutes = (row: any) => {
-  const elapsedMinutes = diffMinutes(row.clock_in, row.clock_out);
+  const elapsedMinutes = diffMinutes(getPayrollClockIn(row), row.clock_out);
   if (elapsedMinutes <= 0) return 0;
 
   return Math.max(
@@ -607,7 +621,7 @@ export const payrollService = {
       const rawLateMinutes = userAttendance.reduce(
         (sum, row) => {
           const minutesLate = getAttendanceLateMinutes(row);
-          return minutesLate >= 15 ? sum + minutesLate : sum;
+          return minutesLate > 0 ? sum + minutesLate : sum;
         },
         0
       );
