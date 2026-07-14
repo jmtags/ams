@@ -59,6 +59,29 @@ function statusVariant(status: string) {
   return "secondary";
 }
 
+function diffMinutes(
+  start: string | null | undefined,
+  end: string | null | undefined
+) {
+  if (!start || !end) return 0;
+
+  const startTime = new Date(start).getTime();
+  const endTime = new Date(end).getTime();
+  if (!Number.isFinite(startTime) || !Number.isFinite(endTime)) return 0;
+
+  return Math.max(0, Math.floor((endTime - startTime) / 60000));
+}
+
+function getRenderedOvertimeMinutes(row: OvertimeApprovalRow) {
+  if (row.minutes_overtime > 0) return row.minutes_overtime;
+
+  const overtimeAfterMinutes = Number(row.shifts?.overtime_after_minutes ?? 0);
+  return Math.max(
+    0,
+    diffMinutes(row.scheduled_end, row.clock_out) - overtimeAfterMinutes
+  );
+}
+
 export function OvertimeApprovalsPage() {
   const [rows, setRows] = useState<OvertimeApprovalRow[]>([]);
   const [filter, setFilter] = useState<FilterStatus>("pending");
@@ -97,10 +120,12 @@ export function OvertimeApprovalsPage() {
   }, [filter, rows]);
 
   const openDialog = (row: OvertimeApprovalRow, action: DialogAction) => {
+    const renderedOvertimeMinutes = getRenderedOvertimeMinutes(row);
+
     setSelectedRow(row);
     setDialogAction(action);
     setApprovedMinutes(
-      String(row.approved_overtime_minutes || row.minutes_overtime || 0)
+      String(row.approved_overtime_minutes || renderedOvertimeMinutes || 0)
     );
     setRemarks(row.remarks ?? "");
     setError("");
@@ -124,12 +149,19 @@ export function OvertimeApprovalsPage() {
 
     try {
       if (dialogAction === "approve") {
+        const renderedOvertimeMinutes = getRenderedOvertimeMinutes(selectedRow);
         const minutes = Number(approvedMinutes);
         if (!Number.isFinite(minutes) || minutes <= 0) {
           throw new Error("Approved overtime minutes must be greater than zero.");
         }
 
-        if (minutes > selectedRow.minutes_overtime) {
+        if (renderedOvertimeMinutes <= 0) {
+          throw new Error(
+            "Rendered overtime minutes could not be determined for this record."
+          );
+        }
+
+        if (minutes > renderedOvertimeMinutes) {
           throw new Error("Approved minutes cannot exceed rendered overtime.");
         }
 
@@ -207,7 +239,10 @@ export function OvertimeApprovalsPage() {
             <CardContent className="pt-6">
               <p className="text-sm text-neutral-500">Rendered OT Minutes</p>
               <p className="text-2xl font-bold mt-2">
-                {rows.reduce((sum, row) => sum + row.minutes_overtime, 0)}
+                {rows.reduce(
+                  (sum, row) => sum + getRenderedOvertimeMinutes(row),
+                  0
+                )}
               </p>
             </CardContent>
           </Card>
@@ -267,7 +302,9 @@ export function OvertimeApprovalsPage() {
                           <div>Out: {formatTime(row.clock_out)}</div>
                         </div>
                       </TableCell>
-                      <TableCell>{row.minutes_overtime} min</TableCell>
+                      <TableCell>
+                        {getRenderedOvertimeMinutes(row)} min
+                      </TableCell>
                       <TableCell>
                         {row.approved_overtime_minutes > 0
                           ? `${row.approved_overtime_minutes} min`
@@ -373,7 +410,7 @@ export function OvertimeApprovalsPage() {
                     <div>
                       <p className="text-neutral-500">Rendered OT</p>
                       <p className="font-medium">
-                        {selectedRow.minutes_overtime} minutes
+                        {getRenderedOvertimeMinutes(selectedRow)} minutes
                       </p>
                     </div>
                     <div>
@@ -393,7 +430,9 @@ export function OvertimeApprovalsPage() {
                         id="approved_minutes"
                         type="number"
                         min="1"
-                        max={selectedRow.minutes_overtime}
+                        max={
+                          getRenderedOvertimeMinutes(selectedRow) || undefined
+                        }
                         value={approvedMinutes}
                         onChange={(event) =>
                           setApprovedMinutes(event.target.value)
