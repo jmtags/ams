@@ -219,13 +219,24 @@ const diffMinutes = (
   return Math.max(0, Math.round((endTime - startTime) / 60000));
 };
 
+const diffCompletedMinutes = (
+  start: string | null | undefined,
+  end: string | null | undefined
+) => {
+  if (!start || !end) return 0;
+  const startTime = new Date(start).getTime();
+  const endTime = new Date(end).getTime();
+  if (!Number.isFinite(startTime) || !Number.isFinite(endTime)) return 0;
+  return Math.max(0, Math.floor((endTime - startTime) / 60000));
+};
+
 const getPayrollClockIn = (row: any) => {
   if (!row.clock_in || !row.scheduled_start) return row.clock_in;
 
   const graceMinutes = Number(row.shifts?.grace_minutes ?? 0);
   if (graceMinutes <= 0) return row.clock_in;
 
-  const lateMinutes = diffMinutes(row.scheduled_start, row.clock_in);
+  const lateMinutes = diffCompletedMinutes(row.scheduled_start, row.clock_in);
   if (lateMinutes > 0 && lateMinutes < graceMinutes) {
     return row.scheduled_start;
   }
@@ -257,7 +268,10 @@ const getAttendanceOvertimeMinutes = (row: any) => {
 
 const getAttendanceLateMinutes = (row: any) => {
   const graceMinutes = Number(row.shifts?.grace_minutes ?? 0);
-  const actualLateMinutes = diffMinutes(row.scheduled_start, row.clock_in);
+  const actualLateMinutes = diffCompletedMinutes(
+    row.scheduled_start,
+    row.clock_in
+  );
   if (actualLateMinutes > 0) {
     return actualLateMinutes < graceMinutes ? 0 : actualLateMinutes;
   }
