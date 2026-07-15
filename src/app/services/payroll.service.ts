@@ -226,7 +226,7 @@ const getPayrollClockIn = (row: any) => {
   if (graceMinutes <= 0) return row.clock_in;
 
   const lateMinutes = diffMinutes(row.scheduled_start, row.clock_in);
-  if (lateMinutes > 0 && lateMinutes <= graceMinutes) {
+  if (lateMinutes > 0 && lateMinutes < graceMinutes) {
     return row.scheduled_start;
   }
 
@@ -259,7 +259,7 @@ const getAttendanceLateMinutes = (row: any) => {
   const graceMinutes = Number(row.shifts?.grace_minutes ?? 0);
   const actualLateMinutes = diffMinutes(row.scheduled_start, row.clock_in);
   if (actualLateMinutes > 0) {
-    return Math.max(0, actualLateMinutes - graceMinutes);
+    return actualLateMinutes < graceMinutes ? 0 : actualLateMinutes;
   }
 
   const status = String(row.status ?? "").toLowerCase();
@@ -269,7 +269,7 @@ const getAttendanceLateMinutes = (row: any) => {
   if (!markedLate) return 0;
 
   const recordedMinutes = Number(row.minutes_late ?? 0);
-  return Math.max(0, recordedMinutes - graceMinutes);
+  return recordedMinutes < graceMinutes ? 0 : recordedMinutes;
 };
 
 const getPartTimeBreakMinutes = (elapsedMinutes: number) => {
