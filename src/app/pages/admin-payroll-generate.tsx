@@ -201,6 +201,10 @@ export function AdminPayrollGeneratePage() {
         acc.employeeCount += 1;
         acc.grossPay += Number(row.gross_pay ?? 0);
         acc.holidayPay += Number(row.holiday_pay ?? 0);
+        acc.governmentDeductions +=
+          Number(row.sss_deduction ?? 0) +
+          Number(row.philhealth_deduction ?? 0) +
+          Number(row.pagibig_deduction ?? 0);
         acc.totalDeductions += Number(row.total_deductions ?? 0);
         acc.netPay += Number(row.net_pay ?? 0);
         acc.totalWorkDays += Number(row.total_work_days ?? 0);
@@ -210,6 +214,7 @@ export function AdminPayrollGeneratePage() {
         employeeCount: 0,
         grossPay: 0,
         holidayPay: 0,
+        governmentDeductions: 0,
         totalDeductions: 0,
         netPay: 0,
         totalWorkDays: 0,
@@ -312,7 +317,7 @@ export function AdminPayrollGeneratePage() {
         </Card>
 
         {selectedPeriod && (
-          <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-7 gap-4">
             <Card>
               <CardContent className="pt-6">
                 <p className="text-sm text-neutral-500">Period Status</p>
@@ -352,6 +357,15 @@ export function AdminPayrollGeneratePage() {
                 <p className="text-sm text-neutral-500">Holiday Pay</p>
                 <p className="text-2xl font-bold mt-2">
                   {currency(summary.holidayPay)}
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="pt-6">
+                <p className="text-sm text-neutral-500">Gov't Deductions</p>
+                <p className="text-2xl font-bold mt-2">
+                  {currency(summary.governmentDeductions)}
                 </p>
               </CardContent>
             </Card>

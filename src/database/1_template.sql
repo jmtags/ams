@@ -265,6 +265,15 @@ create table if not exists public.employee_compensation (
   allowance_amount numeric not null default 0,
   overtime_hourly_rate numeric default 0,
   unpaid_break_minutes integer not null default 60,
+  deduct_sss boolean not null default true,
+  deduct_philhealth boolean not null default true,
+  deduct_pagibig boolean not null default true,
+  government_contribution_frequency text not null default 'monthly_second_half'::text
+    check (government_contribution_frequency = any (array[
+      'every_payroll'::text,
+      'monthly_first_half'::text,
+      'monthly_second_half'::text
+    ])),
   late_deduction_mode text not null default 'per_minute'::text
     check (late_deduction_mode = any (array[
       'none'::text,
@@ -359,6 +368,12 @@ create table if not exists public.payroll_records (
   sss_deduction numeric not null default 0,
   pagibig_deduction numeric not null default 0,
   philhealth_deduction numeric not null default 0,
+  sss_employer_contribution numeric not null default 0,
+  pagibig_employer_contribution numeric not null default 0,
+  philhealth_employer_contribution numeric not null default 0,
+  sss_monthly_salary_credit numeric not null default 0,
+  pagibig_monthly_salary_base numeric not null default 0,
+  philhealth_monthly_salary_base numeric not null default 0,
   tax_deduction numeric not null default 0,
   other_deductions numeric not null default 0,
   total_deductions numeric not null default 0,

@@ -14,6 +14,13 @@ export type EmployeeCompensation = {
   allowance_amount: number;
   overtime_hourly_rate: number;
   unpaid_break_minutes: number;
+  deduct_sss: boolean;
+  deduct_philhealth: boolean;
+  deduct_pagibig: boolean;
+  government_contribution_frequency:
+    | "every_payroll"
+    | "monthly_first_half"
+    | "monthly_second_half";
   late_deduction_mode: "none" | "per_minute" | "per_hour" | "fixed";
   late_deduction_rate: number;
   undertime_deduction_rate: number;
@@ -38,6 +45,13 @@ export type SaveEmployeeCompensationPayload = {
   allowance_amount?: number;
   overtime_hourly_rate?: number;
   unpaid_break_minutes?: number;
+  deduct_sss?: boolean;
+  deduct_philhealth?: boolean;
+  deduct_pagibig?: boolean;
+  government_contribution_frequency?:
+    | "every_payroll"
+    | "monthly_first_half"
+    | "monthly_second_half";
   late_deduction_mode?: "none" | "per_minute" | "per_hour" | "fixed";
   late_deduction_rate?: number;
   undertime_deduction_rate?: number;
@@ -58,6 +72,11 @@ const mapCompensation = (row: any): EmployeeCompensation => ({
   allowance_amount: Number(row.allowance_amount ?? 0),
   overtime_hourly_rate: Number(row.overtime_hourly_rate ?? 0),
   unpaid_break_minutes: Number(row.unpaid_break_minutes ?? 60),
+  deduct_sss: row.deduct_sss !== false,
+  deduct_philhealth: row.deduct_philhealth !== false,
+  deduct_pagibig: row.deduct_pagibig !== false,
+  government_contribution_frequency:
+    row.government_contribution_frequency ?? "monthly_second_half",
   late_deduction_mode: row.late_deduction_mode ?? "per_minute",
   late_deduction_rate: Number(row.late_deduction_rate ?? 0),
   undertime_deduction_rate: Number(row.undertime_deduction_rate ?? 0),
@@ -141,6 +160,11 @@ export const employeeCompensationService = {
         allowance_amount: payload.allowance_amount ?? 0,
         overtime_hourly_rate: payload.overtime_hourly_rate ?? 0,
         unpaid_break_minutes: payload.unpaid_break_minutes ?? 60,
+        deduct_sss: payload.deduct_sss ?? true,
+        deduct_philhealth: payload.deduct_philhealth ?? true,
+        deduct_pagibig: payload.deduct_pagibig ?? true,
+        government_contribution_frequency:
+          payload.government_contribution_frequency ?? "monthly_second_half",
         late_deduction_mode: payload.late_deduction_mode ?? "per_minute",
         late_deduction_rate: payload.late_deduction_rate ?? 0,
         undertime_deduction_rate: payload.undertime_deduction_rate ?? 0,

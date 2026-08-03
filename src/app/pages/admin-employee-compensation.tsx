@@ -48,6 +48,13 @@ type FormState = {
   allowance_amount: string;
   overtime_hourly_rate: string;
   unpaid_break_minutes: string;
+  deduct_sss: boolean;
+  deduct_philhealth: boolean;
+  deduct_pagibig: boolean;
+  government_contribution_frequency:
+    | "every_payroll"
+    | "monthly_first_half"
+    | "monthly_second_half";
   late_deduction_mode: "none" | "per_minute" | "per_hour" | "fixed";
   late_deduction_rate: string;
   undertime_deduction_rate: string;
@@ -75,6 +82,10 @@ const defaultForm: FormState = {
   allowance_amount: "0",
   overtime_hourly_rate: "0",
   unpaid_break_minutes: "60",
+  deduct_sss: true,
+  deduct_philhealth: true,
+  deduct_pagibig: true,
+  government_contribution_frequency: "monthly_second_half",
   late_deduction_mode: "per_minute",
   late_deduction_rate: "0",
   undertime_deduction_rate: "0",
@@ -156,6 +167,11 @@ export function AdminEmployeeCompensationPage() {
       allowance_amount: String(record.allowance_amount ?? 0),
       overtime_hourly_rate: String(record.overtime_hourly_rate ?? 0),
       unpaid_break_minutes: String(record.unpaid_break_minutes ?? 60),
+      deduct_sss: record.deduct_sss,
+      deduct_philhealth: record.deduct_philhealth,
+      deduct_pagibig: record.deduct_pagibig,
+      government_contribution_frequency:
+        record.government_contribution_frequency ?? "monthly_second_half",
       late_deduction_mode: record.late_deduction_mode,
       late_deduction_rate: String(record.late_deduction_rate ?? 0),
       undertime_deduction_rate: String(record.undertime_deduction_rate ?? 0),
@@ -213,6 +229,10 @@ export function AdminEmployeeCompensationPage() {
         allowance_amount: parseNumber(form.allowance_amount),
         overtime_hourly_rate: parseNumber(form.overtime_hourly_rate),
         unpaid_break_minutes: Math.max(0, Math.round(parseNumber(form.unpaid_break_minutes))),
+        deduct_sss: form.deduct_sss,
+        deduct_philhealth: form.deduct_philhealth,
+        deduct_pagibig: form.deduct_pagibig,
+        government_contribution_frequency: form.government_contribution_frequency,
         late_deduction_mode: form.late_deduction_mode,
         late_deduction_rate: parseNumber(form.late_deduction_rate),
         undertime_deduction_rate: parseNumber(form.undertime_deduction_rate),
@@ -441,6 +461,7 @@ export function AdminEmployeeCompensationPage() {
                     <TableHead>Daily</TableHead>
                     <TableHead>Hourly</TableHead>
                     <TableHead>Break</TableHead>
+                    <TableHead>Gov't</TableHead>
                     <TableHead>Allowance</TableHead>
                     <TableHead>Effective From</TableHead>
                     <TableHead>Effective To</TableHead>
@@ -452,7 +473,7 @@ export function AdminEmployeeCompensationPage() {
                 <TableBody>
                   {filteredRecords.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={12} className="text-center py-8">
+                      <TableCell colSpan={13} className="text-center py-8">
                         No compensation records found.
                       </TableCell>
                     </TableRow>
@@ -495,6 +516,28 @@ export function AdminEmployeeCompensationPage() {
                         </TableCell>
                         <TableCell>
                           {record ? `${Number(record.unpaid_break_minutes ?? 0)} min` : "-"}
+                        </TableCell>
+                        <TableCell>
+                          {record ? (
+                            <div className="flex flex-wrap gap-1">
+                              {record.deduct_sss && (
+                                <Badge variant="outline">SSS</Badge>
+                              )}
+                              {record.deduct_philhealth && (
+                                <Badge variant="outline">PHIC</Badge>
+                              )}
+                              {record.deduct_pagibig && (
+                                <Badge variant="outline">HDMF</Badge>
+                              )}
+                              {!record.deduct_sss &&
+                                !record.deduct_philhealth &&
+                                !record.deduct_pagibig && (
+                                  <span className="text-neutral-500">None</span>
+                                )}
+                            </div>
+                          ) : (
+                            "-"
+                          )}
                         </TableCell>
                         <TableCell>
                           {record
@@ -807,6 +850,85 @@ export function AdminEmployeeCompensationPage() {
                           }))
                         }
                       />
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg border bg-neutral-50 p-4">
+                    <div className="mb-3">
+                      <h3 className="font-medium">Government Contributions</h3>
+                      <p className="text-sm text-neutral-500">
+                        Enable mandated employee deductions and choose when the
+                        monthly contribution is deducted.
+                      </p>
+                    </div>
+
+                    <div className="grid md:grid-cols-4 gap-4">
+                      <label className="flex items-center gap-2 text-sm font-medium">
+                        <input
+                          type="checkbox"
+                          checked={form.deduct_sss}
+                          onChange={(e) =>
+                            setForm((prev) => ({
+                              ...prev,
+                              deduct_sss: e.target.checked,
+                            }))
+                          }
+                        />
+                        Deduct SSS
+                      </label>
+
+                      <label className="flex items-center gap-2 text-sm font-medium">
+                        <input
+                          type="checkbox"
+                          checked={form.deduct_philhealth}
+                          onChange={(e) =>
+                            setForm((prev) => ({
+                              ...prev,
+                              deduct_philhealth: e.target.checked,
+                            }))
+                          }
+                        />
+                        Deduct PhilHealth
+                      </label>
+
+                      <label className="flex items-center gap-2 text-sm font-medium">
+                        <input
+                          type="checkbox"
+                          checked={form.deduct_pagibig}
+                          onChange={(e) =>
+                            setForm((prev) => ({
+                              ...prev,
+                              deduct_pagibig: e.target.checked,
+                            }))
+                          }
+                        />
+                        Deduct Pag-IBIG
+                      </label>
+
+                      <div>
+                        <label className="block text-sm font-medium mb-1">
+                          Deduction Schedule
+                        </label>
+                        <select
+                          className="w-full border rounded px-3 py-2 bg-white"
+                          value={form.government_contribution_frequency}
+                          onChange={(e) =>
+                            setForm((prev) => ({
+                              ...prev,
+                              government_contribution_frequency: e.target
+                                .value as FormState["government_contribution_frequency"],
+                            }))
+                          }
+                        >
+                          <option value="monthly_second_half">
+                            Monthly - second half
+                          </option>
+                          <option value="monthly_first_half">
+                            Monthly - first half
+                          </option>
+                          <option value="every_payroll">Every payroll</option>
+                        </select>
+                      </div>
                     </div>
                   </div>
 

@@ -30,6 +30,12 @@ export type PayrollRecord = {
   sss_deduction: number;
   pagibig_deduction: number;
   philhealth_deduction: number;
+  sss_employer_contribution: number;
+  pagibig_employer_contribution: number;
+  philhealth_employer_contribution: number;
+  sss_monthly_salary_credit: number;
+  pagibig_monthly_salary_base: number;
+  philhealth_monthly_salary_base: number;
   tax_deduction: number;
   other_deductions: number;
   total_deductions: number;
@@ -176,6 +182,16 @@ const mapPayrollRecord = (row: any): PayrollRecord => ({
   sss_deduction: Number(row.sss_deduction ?? 0),
   pagibig_deduction: Number(row.pagibig_deduction ?? 0),
   philhealth_deduction: Number(row.philhealth_deduction ?? 0),
+  sss_employer_contribution: Number(row.sss_employer_contribution ?? 0),
+  pagibig_employer_contribution: Number(row.pagibig_employer_contribution ?? 0),
+  philhealth_employer_contribution: Number(
+    row.philhealth_employer_contribution ?? 0
+  ),
+  sss_monthly_salary_credit: Number(row.sss_monthly_salary_credit ?? 0),
+  pagibig_monthly_salary_base: Number(row.pagibig_monthly_salary_base ?? 0),
+  philhealth_monthly_salary_base: Number(
+    row.philhealth_monthly_salary_base ?? 0
+  ),
   tax_deduction: Number(row.tax_deduction ?? 0),
   other_deductions: Number(row.other_deductions ?? 0),
   total_deductions: Number(row.total_deductions ?? 0),
@@ -390,6 +406,95 @@ const appliesRecurringDeductionToPeriod = (
   }
 
   return false;
+};
+
+type GovernmentContributionResult = {
+  sssEmployee: number;
+  sssEmployer: number;
+  sssMonthlySalaryCredit: number;
+  philhealthEmployee: number;
+  philhealthEmployer: number;
+  philhealthMonthlySalaryBase: number;
+  pagibigEmployee: number;
+  pagibigEmployer: number;
+  pagibigMonthlySalaryBase: number;
+};
+
+const emptyGovernmentContribution: GovernmentContributionResult = {
+  sssEmployee: 0,
+  sssEmployer: 0,
+  sssMonthlySalaryCredit: 0,
+  philhealthEmployee: 0,
+  philhealthEmployer: 0,
+  philhealthMonthlySalaryBase: 0,
+  pagibigEmployee: 0,
+  pagibigEmployer: 0,
+  pagibigMonthlySalaryBase: 0,
+};
+
+const clamp = (value: number, min: number, max: number) =>
+  Math.min(max, Math.max(min, value));
+
+const shouldApplyGovernmentContribution = (
+  frequency: string | null | undefined,
+  periodFrom: string,
+  periodTo: string
+) => {
+  const schedule = frequency ?? "monthly_second_half";
+
+  if (schedule === "every_payroll") return true;
+  if (schedule === "monthly_first_half") return getDayOfMonth(periodTo) <= 15;
+  if (schedule === "monthly_second_half") {
+    return getDayOfMonth(periodFrom) >= 16 || getDayOfMonth(periodTo) > 15;
+  }
+
+  return false;
+};
+
+const computeGovernmentContributions = (
+  comp: any,
+  monthlyBasicSalary: number,
+  periodFrom: string,
+  periodTo: string
+): GovernmentContributionResult => {
+  if (
+    monthlyBasicSalary <= 0 ||
+    !shouldApplyGovernmentContribution(
+      comp.government_contribution_frequency,
+      periodFrom,
+      periodTo
+    )
+  ) {
+    return emptyGovernmentContribution;
+  }
+
+  const result: GovernmentContributionResult = {
+    ...emptyGovernmentContribution,
+  };
+
+  if (comp.deduct_sss !== false) {
+    const monthlySalaryCredit = clamp(monthlyBasicSalary, 5000, 35000);
+    result.sssMonthlySalaryCredit = monthlySalaryCredit;
+    result.sssEmployee = round2(monthlySalaryCredit * 0.05);
+    result.sssEmployer = round2(monthlySalaryCredit * 0.1);
+  }
+
+  if (comp.deduct_philhealth !== false) {
+    const monthlySalaryBase = clamp(monthlyBasicSalary, 10000, 100000);
+    const totalPremium = round2(monthlySalaryBase * 0.05);
+    result.philhealthMonthlySalaryBase = monthlySalaryBase;
+    result.philhealthEmployee = round2(totalPremium / 2);
+    result.philhealthEmployer = round2(totalPremium / 2);
+  }
+
+  if (comp.deduct_pagibig !== false) {
+    const monthlySalaryBase = Math.min(monthlyBasicSalary, 10000);
+    result.pagibigMonthlySalaryBase = monthlySalaryBase;
+    result.pagibigEmployee = round2(monthlySalaryBase * 0.02);
+    result.pagibigEmployer = round2(monthlySalaryBase * 0.02);
+  }
+
+  return result;
 };
 
 export const payrollService = {
@@ -959,8 +1064,20 @@ export const payrollService = {
           additions
       );
 
+      const governmentContributions = computeGovernmentContributions(
+        comp,
+        basicMonthlyRate,
+        period.date_from,
+        period.date_to
+      );
+
       const totalDeductions = round2(
-        lateDeduction + absentDeduction + otherDeductions
+        lateDeduction +
+          absentDeduction +
+          governmentContributions.sssEmployee +
+          governmentContributions.pagibigEmployee +
+          governmentContributions.philhealthEmployee +
+          otherDeductions
       );
 
       const netPay = round2(grossPay - totalDeductions);
@@ -991,9 +1108,20 @@ export const payrollService = {
         late_deduction: round2(lateDeduction),
         undertime_deduction: 0,
         absent_deduction: round2(absentDeduction),
-        sss_deduction: 0,
-        pagibig_deduction: 0,
-        philhealth_deduction: 0,
+        sss_deduction: governmentContributions.sssEmployee,
+        pagibig_deduction: governmentContributions.pagibigEmployee,
+        philhealth_deduction: governmentContributions.philhealthEmployee,
+        sss_employer_contribution: governmentContributions.sssEmployer,
+        pagibig_employer_contribution:
+          governmentContributions.pagibigEmployer,
+        philhealth_employer_contribution:
+          governmentContributions.philhealthEmployer,
+        sss_monthly_salary_credit:
+          governmentContributions.sssMonthlySalaryCredit,
+        pagibig_monthly_salary_base:
+          governmentContributions.pagibigMonthlySalaryBase,
+        philhealth_monthly_salary_base:
+          governmentContributions.philhealthMonthlySalaryBase,
         tax_deduction: 0,
         other_deductions: otherDeductions,
         total_deductions: totalDeductions,
@@ -1151,6 +1279,39 @@ export const payrollService = {
             Number(record.total_unpaid_leave_days ?? 0),
           rate: record.daily_rate,
           amount: record.absent_deduction,
+        });
+      }
+
+      if (Number(record.sss_deduction ?? 0) > 0) {
+        itemsToInsert.push({
+          payroll_record_id: record.id,
+          item_type: "sss_deduction",
+          description: "SSS Employee Share",
+          quantity: 1,
+          rate: record.sss_deduction,
+          amount: record.sss_deduction,
+        });
+      }
+
+      if (Number(record.philhealth_deduction ?? 0) > 0) {
+        itemsToInsert.push({
+          payroll_record_id: record.id,
+          item_type: "philhealth_deduction",
+          description: "PhilHealth Employee Share",
+          quantity: 1,
+          rate: record.philhealth_deduction,
+          amount: record.philhealth_deduction,
+        });
+      }
+
+      if (Number(record.pagibig_deduction ?? 0) > 0) {
+        itemsToInsert.push({
+          payroll_record_id: record.id,
+          item_type: "pagibig_deduction",
+          description: "Pag-IBIG Employee Share",
+          quantity: 1,
+          rate: record.pagibig_deduction,
+          amount: record.pagibig_deduction,
         });
       }
 
