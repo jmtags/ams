@@ -204,7 +204,8 @@ export function AdminPayrollGeneratePage() {
         acc.governmentDeductions +=
           Number(row.sss_deduction ?? 0) +
           Number(row.philhealth_deduction ?? 0) +
-          Number(row.pagibig_deduction ?? 0);
+          Number(row.pagibig_deduction ?? 0) +
+          Number(row.tax_deduction ?? 0);
         acc.totalDeductions += Number(row.total_deductions ?? 0);
         acc.netPay += Number(row.net_pay ?? 0);
         acc.totalWorkDays += Number(row.total_work_days ?? 0);

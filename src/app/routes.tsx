@@ -35,6 +35,8 @@ import { AdminPayrollDetailsPage } from "./pages/admin-payroll-details";
 import { AdminPayrollAdjustmentsPage } from "./pages/admin-payroll-adjustments";
 import { AdminRecurringDeductionsPage } from "./pages/admin-recurring-deductions";
 import { AdminPayrollSettingsPage } from "./pages/admin-payroll-settings";
+import { AdminGovernmentContributionsPage } from "./pages/admin-government-contributions";
+import { AdminGovernmentReportsPage } from "./pages/admin-government-reports";
 import { AdminSettingsPage } from "./pages/admin-settings";
 import { AdminAnnouncementsPage } from "./pages/admin-announcements";
 import { AdminPolicyDocumentsPage } from "./pages/admin-policy-documents";
@@ -303,6 +305,22 @@ export const router = createBrowserRouter([
     element: (
       <ProtectedRoute allowedRoles={["admin", "hr", "payroll"]}>
         <AdminPayrollSettingsPage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/admin/government-contributions",
+    element: (
+      <ProtectedRoute allowedRoles={["admin", "hr", "payroll"]}>
+        <AdminGovernmentContributionsPage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/admin/government-reports",
+    element: (
+      <ProtectedRoute allowedRoles={["admin", "hr", "payroll"]}>
+        <AdminGovernmentReportsPage />
       </ProtectedRoute>
     ),
   },

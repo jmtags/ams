@@ -51,6 +51,7 @@ type FormState = {
   deduct_sss: boolean;
   deduct_philhealth: boolean;
   deduct_pagibig: boolean;
+  deduct_withholding_tax: boolean;
   government_contribution_frequency:
     | "every_payroll"
     | "monthly_first_half"
@@ -85,6 +86,7 @@ const defaultForm: FormState = {
   deduct_sss: true,
   deduct_philhealth: true,
   deduct_pagibig: true,
+  deduct_withholding_tax: false,
   government_contribution_frequency: "monthly_second_half",
   late_deduction_mode: "per_minute",
   late_deduction_rate: "0",
@@ -170,6 +172,7 @@ export function AdminEmployeeCompensationPage() {
       deduct_sss: record.deduct_sss,
       deduct_philhealth: record.deduct_philhealth,
       deduct_pagibig: record.deduct_pagibig,
+      deduct_withholding_tax: record.deduct_withholding_tax,
       government_contribution_frequency:
         record.government_contribution_frequency ?? "monthly_second_half",
       late_deduction_mode: record.late_deduction_mode,
@@ -232,6 +235,7 @@ export function AdminEmployeeCompensationPage() {
         deduct_sss: form.deduct_sss,
         deduct_philhealth: form.deduct_philhealth,
         deduct_pagibig: form.deduct_pagibig,
+        deduct_withholding_tax: form.deduct_withholding_tax,
         government_contribution_frequency: form.government_contribution_frequency,
         late_deduction_mode: form.late_deduction_mode,
         late_deduction_rate: parseNumber(form.late_deduction_rate),
@@ -529,9 +533,13 @@ export function AdminEmployeeCompensationPage() {
                               {record.deduct_pagibig && (
                                 <Badge variant="outline">HDMF</Badge>
                               )}
+                              {record.deduct_withholding_tax && (
+                                <Badge variant="outline">Tax</Badge>
+                              )}
                               {!record.deduct_sss &&
                                 !record.deduct_philhealth &&
-                                !record.deduct_pagibig && (
+                                !record.deduct_pagibig &&
+                                !record.deduct_withholding_tax && (
                                   <span className="text-neutral-500">None</span>
                                 )}
                             </div>
@@ -901,7 +909,7 @@ export function AdminEmployeeCompensationPage() {
                       </p>
                     </div>
 
-                    <div className="grid md:grid-cols-4 gap-4">
+                    <div className="grid md:grid-cols-5 gap-4">
                       <label className="flex items-center gap-2 text-sm font-medium">
                         <input
                           type="checkbox"
@@ -942,6 +950,20 @@ export function AdminEmployeeCompensationPage() {
                           }
                         />
                         Deduct Pag-IBIG
+                      </label>
+
+                      <label className="flex items-center gap-2 text-sm font-medium">
+                        <input
+                          type="checkbox"
+                          checked={form.deduct_withholding_tax}
+                          onChange={(e) =>
+                            setForm((prev) => ({
+                              ...prev,
+                              deduct_withholding_tax: e.target.checked,
+                            }))
+                          }
+                        />
+                        Deduct Tax
                       </label>
 
                       <div>

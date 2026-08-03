@@ -185,6 +185,16 @@ const navGroups: NavGroup[] = [
         to: "/admin/payroll-settings",
         icon: <Settings className="h-4 w-4" />,
       },
+      {
+        label: "Government Tables",
+        to: "/admin/government-contributions",
+        icon: <Banknote className="h-4 w-4" />,
+      },
+      {
+        label: "Government Reports",
+        to: "/admin/government-reports",
+        icon: <FileText className="h-4 w-4" />,
+      },
     ],
   },
   {

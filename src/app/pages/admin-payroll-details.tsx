@@ -410,7 +410,7 @@ export function AdminPayrollDetailsPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4">
                   <div className="rounded-xl border p-4">
                     <p className="text-sm text-neutral-500">SSS</p>
                     <p className="text-xl font-semibold mt-2">
@@ -439,6 +439,13 @@ export function AdminPayrollDetailsPage() {
                     </p>
                     <p className="text-xs text-neutral-500 mt-1">
                       Employer: {currency(record.pagibig_employer_contribution)}
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl border p-4">
+                    <p className="text-sm text-neutral-500">Withholding Tax</p>
+                    <p className="text-xl font-semibold mt-2">
+                      {currency(record.tax_deduction)}
                     </p>
                   </div>
                 </div>

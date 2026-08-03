@@ -1,4 +1,9 @@
 import { supabase } from "../lib/supabase";
+import {
+  governmentContributionSettingsService,
+  type GovernmentContributionSetting,
+  type GovernmentSettingType,
+} from "./government-contribution-settings.service";
 
 export type PayrollRecord = {
   id: string;
@@ -420,6 +425,10 @@ type GovernmentContributionResult = {
   pagibigMonthlySalaryBase: number;
 };
 
+type GovernmentSettingsByType = Partial<
+  Record<GovernmentSettingType, GovernmentContributionSetting>
+>;
+
 const emptyGovernmentContribution: GovernmentContributionResult = {
   sssEmployee: 0,
   sssEmployer: 0,
@@ -455,7 +464,8 @@ const computeGovernmentContributions = (
   comp: any,
   monthlyBasicSalary: number,
   periodFrom: string,
-  periodTo: string
+  periodTo: string,
+  governmentSettings: GovernmentSettingsByType
 ): GovernmentContributionResult => {
   if (
     monthlyBasicSalary <= 0 ||
@@ -473,28 +483,116 @@ const computeGovernmentContributions = (
   };
 
   if (comp.deduct_sss !== false) {
-    const monthlySalaryCredit = clamp(monthlyBasicSalary, 5000, 35000);
+    const sssConfig = governmentSettings.sss?.config ?? {};
+    const ranges = Array.isArray(sssConfig.salary_ranges)
+      ? sssConfig.salary_ranges
+      : [];
+    const matchingRange = ranges.find((range: any) => {
+      const min = Number(range.min ?? 0);
+      const max =
+        range.max === null || range.max === undefined
+          ? Number.POSITIVE_INFINITY
+          : Number(range.max);
+      return monthlyBasicSalary >= min && monthlyBasicSalary <= max;
+    });
+    const monthlySalaryCredit =
+      matchingRange?.monthly_salary_credit === null ||
+      matchingRange?.monthly_salary_credit === undefined
+        ? clamp(monthlyBasicSalary, 5000, 35000)
+        : Number(matchingRange.monthly_salary_credit);
+    const employeeRate = Number(matchingRange?.employee_rate ?? 0.05);
+    const employerRate = Number(matchingRange?.employer_rate ?? 0.1);
+
     result.sssMonthlySalaryCredit = monthlySalaryCredit;
-    result.sssEmployee = round2(monthlySalaryCredit * 0.05);
-    result.sssEmployer = round2(monthlySalaryCredit * 0.1);
+    result.sssEmployee = round2(monthlySalaryCredit * employeeRate);
+    result.sssEmployer = round2(monthlySalaryCredit * employerRate);
   }
 
   if (comp.deduct_philhealth !== false) {
-    const monthlySalaryBase = clamp(monthlyBasicSalary, 10000, 100000);
-    const totalPremium = round2(monthlySalaryBase * 0.05);
+    const philhealthConfig = governmentSettings.philhealth?.config ?? {};
+    const salaryFloor = Number(philhealthConfig.salary_floor ?? 10000);
+    const salaryCeiling = Number(philhealthConfig.salary_ceiling ?? 100000);
+    const totalRate = Number(philhealthConfig.total_rate ?? 0.05);
+    const employeeShare = Number(philhealthConfig.employee_share ?? 0.5);
+    const employerShare = Number(philhealthConfig.employer_share ?? 0.5);
+    const monthlySalaryBase = clamp(
+      monthlyBasicSalary,
+      salaryFloor,
+      salaryCeiling
+    );
+    const totalPremium = round2(monthlySalaryBase * totalRate);
+
     result.philhealthMonthlySalaryBase = monthlySalaryBase;
-    result.philhealthEmployee = round2(totalPremium / 2);
-    result.philhealthEmployer = round2(totalPremium / 2);
+    result.philhealthEmployee = round2(totalPremium * employeeShare);
+    result.philhealthEmployer = round2(totalPremium * employerShare);
   }
 
   if (comp.deduct_pagibig !== false) {
-    const monthlySalaryBase = Math.min(monthlyBasicSalary, 10000);
+    const pagibigConfig = governmentSettings.pagibig?.config ?? {};
+    const salaryCap = Number(pagibigConfig.salary_cap ?? 10000);
+    const employeeRate = Number(pagibigConfig.employee_rate ?? 0.02);
+    const employerRate = Number(pagibigConfig.employer_rate ?? 0.02);
+    const monthlySalaryBase = Math.min(monthlyBasicSalary, salaryCap);
+
     result.pagibigMonthlySalaryBase = monthlySalaryBase;
-    result.pagibigEmployee = round2(monthlySalaryBase * 0.02);
-    result.pagibigEmployer = round2(monthlySalaryBase * 0.02);
+    result.pagibigEmployee = round2(monthlySalaryBase * employeeRate);
+    result.pagibigEmployer = round2(monthlySalaryBase * employerRate);
   }
 
   return result;
+};
+
+const getTaxFrequencyForPeriod = (periodFrom: string, periodTo: string) => {
+  const fromTime = new Date(`${periodFrom}T00:00:00`).getTime();
+  const toTime = new Date(`${periodTo}T00:00:00`).getTime();
+  if (!Number.isFinite(fromTime) || !Number.isFinite(toTime)) {
+    return "semi_monthly";
+  }
+
+  const days = Math.max(1, Math.round((toTime - fromTime) / 86400000) + 1);
+  if (days <= 1) return "daily";
+  if (days <= 7) return "weekly";
+  if (days <= 16) return "semi_monthly";
+  return "monthly";
+};
+
+const computeWithholdingTax = (
+  comp: any,
+  taxableCompensation: number,
+  periodFrom: string,
+  periodTo: string,
+  governmentSettings: GovernmentSettingsByType
+) => {
+  if (comp.deduct_withholding_tax !== true || taxableCompensation <= 0) {
+    return 0;
+  }
+
+  const taxConfig = governmentSettings.withholding_tax?.config ?? {};
+  const frequency = getTaxFrequencyForPeriod(periodFrom, periodTo);
+  const table =
+    taxConfig.tables?.[frequency] ??
+    taxConfig.tables?.semi_monthly ??
+    taxConfig.tables?.monthly ??
+    [];
+
+  if (!Array.isArray(table)) return 0;
+
+  const row = table.find((item: any) => {
+    const min = Number(item.min ?? 0);
+    const max =
+      item.max === null || item.max === undefined
+        ? Number.POSITIVE_INFINITY
+        : Number(item.max);
+    return taxableCompensation >= min && taxableCompensation <= max;
+  });
+
+  if (!row) return 0;
+
+  const baseTax = Number(row.base_tax ?? 0);
+  const excessOver = Number(row.excess_over ?? row.min ?? 0);
+  const rate = Number(row.rate ?? 0);
+
+  return round2(baseTax + Math.max(0, taxableCompensation - excessOver) * rate);
 };
 
 export const payrollService = {
@@ -592,6 +690,7 @@ export const payrollService = {
       settingsRes,
       adjustmentsRes,
       recurringRes,
+      governmentSettings,
     ] = await Promise.all([
       supabase.from("users").select("*, shifts ( location_id )").order("name"),
       supabase.from("employee_compensation").select("*").eq("is_active", true),
@@ -635,6 +734,9 @@ export const payrollService = {
         .from("employee_recurring_deductions")
         .select("*")
         .eq("is_active", true),
+      governmentContributionSettingsService
+        .getActiveByType()
+        .catch(() => ({} as GovernmentSettingsByType)),
     ]);
 
     if (usersRes.error) throw usersRes.error;
@@ -1068,7 +1170,22 @@ export const payrollService = {
         comp,
         basicMonthlyRate,
         period.date_from,
-        period.date_to
+        period.date_to,
+        governmentSettings
+      );
+
+      const taxableCompensation = round2(
+        grossPay -
+          governmentContributions.sssEmployee -
+          governmentContributions.pagibigEmployee -
+          governmentContributions.philhealthEmployee
+      );
+      const taxDeduction = computeWithholdingTax(
+        comp,
+        taxableCompensation,
+        period.date_from,
+        period.date_to,
+        governmentSettings
       );
 
       const totalDeductions = round2(
@@ -1077,6 +1194,7 @@ export const payrollService = {
           governmentContributions.sssEmployee +
           governmentContributions.pagibigEmployee +
           governmentContributions.philhealthEmployee +
+          taxDeduction +
           otherDeductions
       );
 
@@ -1122,7 +1240,7 @@ export const payrollService = {
           governmentContributions.pagibigMonthlySalaryBase,
         philhealth_monthly_salary_base:
           governmentContributions.philhealthMonthlySalaryBase,
-        tax_deduction: 0,
+        tax_deduction: taxDeduction,
         other_deductions: otherDeductions,
         total_deductions: totalDeductions,
         net_pay: netPay,
@@ -1312,6 +1430,17 @@ export const payrollService = {
           quantity: 1,
           rate: record.pagibig_deduction,
           amount: record.pagibig_deduction,
+        });
+      }
+
+      if (Number(record.tax_deduction ?? 0) > 0) {
+        itemsToInsert.push({
+          payroll_record_id: record.id,
+          item_type: "tax_deduction",
+          description: "Withholding Tax",
+          quantity: 1,
+          rate: record.tax_deduction,
+          amount: record.tax_deduction,
         });
       }
 

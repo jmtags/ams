@@ -17,6 +17,7 @@ export type EmployeeCompensation = {
   deduct_sss: boolean;
   deduct_philhealth: boolean;
   deduct_pagibig: boolean;
+  deduct_withholding_tax: boolean;
   government_contribution_frequency:
     | "every_payroll"
     | "monthly_first_half"
@@ -48,6 +49,7 @@ export type SaveEmployeeCompensationPayload = {
   deduct_sss?: boolean;
   deduct_philhealth?: boolean;
   deduct_pagibig?: boolean;
+  deduct_withholding_tax?: boolean;
   government_contribution_frequency?:
     | "every_payroll"
     | "monthly_first_half"
@@ -75,6 +77,7 @@ const mapCompensation = (row: any): EmployeeCompensation => ({
   deduct_sss: row.deduct_sss !== false,
   deduct_philhealth: row.deduct_philhealth !== false,
   deduct_pagibig: row.deduct_pagibig !== false,
+  deduct_withholding_tax: row.deduct_withholding_tax === true,
   government_contribution_frequency:
     row.government_contribution_frequency ?? "monthly_second_half",
   late_deduction_mode: row.late_deduction_mode ?? "per_minute",
@@ -163,6 +166,7 @@ export const employeeCompensationService = {
         deduct_sss: payload.deduct_sss ?? true,
         deduct_philhealth: payload.deduct_philhealth ?? true,
         deduct_pagibig: payload.deduct_pagibig ?? true,
+        deduct_withholding_tax: payload.deduct_withholding_tax ?? false,
         government_contribution_frequency:
           payload.government_contribution_frequency ?? "monthly_second_half",
         late_deduction_mode: payload.late_deduction_mode ?? "per_minute",

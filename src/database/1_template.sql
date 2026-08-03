@@ -268,6 +268,7 @@ create table if not exists public.employee_compensation (
   deduct_sss boolean not null default true,
   deduct_philhealth boolean not null default true,
   deduct_pagibig boolean not null default true,
+  deduct_withholding_tax boolean not null default false,
   government_contribution_frequency text not null default 'monthly_second_half'::text
     check (government_contribution_frequency = any (array[
       'every_payroll'::text,
@@ -323,6 +324,23 @@ create table if not exists public.employee_recurring_deductions (
   updated_at timestamp with time zone not null default now(),
   constraint employee_recurring_deductions_user_id_fkey
     foreign key (user_id) references public.users(id)
+);
+
+create table if not exists public.government_contribution_settings (
+  id uuid primary key default gen_random_uuid(),
+  setting_type text not null
+    check (setting_type = any (array[
+      'sss'::text,
+      'philhealth'::text,
+      'pagibig'::text,
+      'withholding_tax'::text
+    ])),
+  name text not null,
+  effective_from date not null default current_date,
+  is_active boolean not null default true,
+  config jsonb not null default '{}'::jsonb,
+  created_at timestamp with time zone not null default now(),
+  updated_at timestamp with time zone not null default now()
 );
 
 -- =========================================================
@@ -485,6 +503,8 @@ create index if not exists idx_leave_request_dates_leave_date on public.leave_re
 create index if not exists idx_employee_compensation_user_id on public.employee_compensation(user_id);
 create index if not exists idx_employee_compensation_effective_from on public.employee_compensation(effective_from);
 create index if not exists idx_employee_compensation_is_active on public.employee_compensation(is_active);
+create index if not exists idx_government_contribution_settings_type on public.government_contribution_settings(setting_type);
+create index if not exists idx_government_contribution_settings_active on public.government_contribution_settings(is_active);
 
 create index if not exists idx_employee_recurring_deductions_user_id on public.employee_recurring_deductions(user_id);
 create index if not exists idx_employee_recurring_deductions_is_active on public.employee_recurring_deductions(is_active);
