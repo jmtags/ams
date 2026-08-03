@@ -65,6 +65,7 @@ export function AdminGovernmentContributionsPage() {
   const [taxFrequency, setTaxFrequency] = useState("semi_monthly");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isCreatingDefaults, setIsCreatingDefaults] = useState(false);
 
   useEffect(() => {
     loadSettings();
@@ -118,6 +119,34 @@ export function AdminGovernmentContributionsPage() {
     }
   };
 
+  const handleCreateDefault = async () => {
+    try {
+      setIsCreatingDefaults(true);
+      await governmentContributionSettingsService.createDefault(selectedType);
+      await loadSettings();
+      alert(`${settingLabels[selectedType]} default settings created.`);
+    } catch (error: any) {
+      console.error("Failed to create default government settings:", error);
+      alert(error.message || "Failed to create default settings.");
+    } finally {
+      setIsCreatingDefaults(false);
+    }
+  };
+
+  const handleCreateMissingDefaults = async () => {
+    try {
+      setIsCreatingDefaults(true);
+      await governmentContributionSettingsService.createMissingDefaults();
+      await loadSettings();
+      alert("Missing government contribution defaults created.");
+    } catch (error: any) {
+      console.error("Failed to create missing government settings:", error);
+      alert(error.message || "Failed to create missing default settings.");
+    } finally {
+      setIsCreatingDefaults(false);
+    }
+  };
+
   const sssRows = useMemo(
     () => (Array.isArray(draft?.config?.salary_ranges) ? draft?.config.salary_ranges : []),
     [draft]
@@ -148,6 +177,14 @@ export function AdminGovernmentContributionsPage() {
             <Button variant="outline" onClick={loadSettings}>
               <RefreshCw className="w-4 h-4 mr-2" />
               Refresh
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleCreateMissingDefaults}
+              disabled={isCreatingDefaults}
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              {isCreatingDefaults ? "Creating..." : "Create Missing Defaults"}
             </Button>
             <Button onClick={handleSave} disabled={!draft || isSaving}>
               <Save className="w-4 h-4 mr-2" />
@@ -203,8 +240,28 @@ export function AdminGovernmentContributionsPage() {
           </Card>
         ) : !draft ? (
           <Card>
-            <CardContent className="py-10 text-center text-neutral-500">
-              No settings found for this contribution type.
+            <CardContent className="py-10 text-center">
+              <div className="mx-auto max-w-lg space-y-4">
+                <div>
+                  <h3 className="text-lg font-semibold text-neutral-900">
+                    No {settingLabels[selectedType]} settings found
+                  </h3>
+                  <p className="mt-1 text-neutral-600">
+                    Create the default table first, then adjust the values if
+                    your payroll team needs a different rate or range.
+                  </p>
+                </div>
+
+                <Button
+                  onClick={handleCreateDefault}
+                  disabled={isCreatingDefaults}
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  {isCreatingDefaults
+                    ? "Creating..."
+                    : `Create ${settingLabels[selectedType]} Default`}
+                </Button>
+              </div>
             </CardContent>
           </Card>
         ) : (

@@ -45,6 +45,156 @@ const mapSetting = (row: any): GovernmentContributionSetting => ({
 
 const numberValue = (value: unknown) => Number(value ?? 0);
 
+export const defaultGovernmentContributionSettings: Record<
+  GovernmentSettingType,
+  Pick<
+    GovernmentContributionSetting,
+    "setting_type" | "name" | "effective_from" | "is_active" | "config"
+  >
+> = {
+  sss: {
+    setting_type: "sss",
+    name: "SSS 2025 Default",
+    effective_from: "2025-01-01",
+    is_active: true,
+    config: {
+      salary_ranges: [
+        {
+          min: 0,
+          max: 4999.99,
+          monthly_salary_credit: 5000,
+          employee_rate: 0.05,
+          employer_rate: 0.1,
+        },
+        {
+          min: 5000,
+          max: 34999.99,
+          monthly_salary_credit: null,
+          employee_rate: 0.05,
+          employer_rate: 0.1,
+        },
+        {
+          min: 35000,
+          max: null,
+          monthly_salary_credit: 35000,
+          employee_rate: 0.05,
+          employer_rate: 0.1,
+        },
+      ],
+    },
+  },
+  philhealth: {
+    setting_type: "philhealth",
+    name: "PhilHealth 2025 Default",
+    effective_from: "2025-01-01",
+    is_active: true,
+    config: {
+      salary_floor: 10000,
+      salary_ceiling: 100000,
+      total_rate: 0.05,
+      employee_share: 0.5,
+      employer_share: 0.5,
+    },
+  },
+  pagibig: {
+    setting_type: "pagibig",
+    name: "Pag-IBIG 2024 Default",
+    effective_from: "2024-02-01",
+    is_active: true,
+    config: {
+      salary_cap: 10000,
+      employee_rate: 0.02,
+      employer_rate: 0.02,
+    },
+  },
+  withholding_tax: {
+    setting_type: "withholding_tax",
+    name: "BIR Withholding Tax Table 2023 Onwards",
+    effective_from: "2023-01-01",
+    is_active: true,
+    config: {
+      tables: {
+        semi_monthly: [
+          { min: 0, max: 10417, base_tax: 0, excess_over: 0, rate: 0 },
+          {
+            min: 10417,
+            max: 16666,
+            base_tax: 0,
+            excess_over: 10417,
+            rate: 0.15,
+          },
+          {
+            min: 16667,
+            max: 33332,
+            base_tax: 937.5,
+            excess_over: 16667,
+            rate: 0.2,
+          },
+          {
+            min: 33333,
+            max: 83332,
+            base_tax: 4270.7,
+            excess_over: 33333,
+            rate: 0.25,
+          },
+          {
+            min: 83333,
+            max: 333332,
+            base_tax: 16770.7,
+            excess_over: 83333,
+            rate: 0.3,
+          },
+          {
+            min: 333333,
+            max: null,
+            base_tax: 91770.7,
+            excess_over: 333333,
+            rate: 0.35,
+          },
+        ],
+        monthly: [
+          { min: 0, max: 20833, base_tax: 0, excess_over: 0, rate: 0 },
+          {
+            min: 20833,
+            max: 33332,
+            base_tax: 0,
+            excess_over: 20833,
+            rate: 0.15,
+          },
+          {
+            min: 33333,
+            max: 66666,
+            base_tax: 1875,
+            excess_over: 33333,
+            rate: 0.2,
+          },
+          {
+            min: 66667,
+            max: 166666,
+            base_tax: 8541.8,
+            excess_over: 66667,
+            rate: 0.25,
+          },
+          {
+            min: 166667,
+            max: 666666,
+            base_tax: 33541.8,
+            excess_over: 166667,
+            rate: 0.3,
+          },
+          {
+            min: 666667,
+            max: null,
+            base_tax: 183541.8,
+            excess_over: 666667,
+            rate: 0.35,
+          },
+        ],
+      },
+    },
+  },
+};
+
 export const governmentContributionSettingsService = {
   async getAll(): Promise<GovernmentContributionSetting[]> {
     const { data, error } = await supabase
@@ -91,6 +241,40 @@ export const governmentContributionSettingsService = {
 
     if (error) throw error;
     return mapSetting(data);
+  },
+
+  async createDefault(
+    settingType: GovernmentSettingType
+  ): Promise<GovernmentContributionSetting> {
+    const defaultSetting = defaultGovernmentContributionSettings[settingType];
+    const { data, error } = await supabase
+      .from("government_contribution_settings")
+      .insert(defaultSetting)
+      .select("*")
+      .single();
+
+    if (error) throw error;
+    return mapSetting(data);
+  },
+
+  async createMissingDefaults(): Promise<void> {
+    const settings = await this.getAll();
+    const existingTypes = new Set(settings.map((setting) => setting.setting_type));
+    const missingTypes = (
+      Object.keys(defaultGovernmentContributionSettings) as GovernmentSettingType[]
+    ).filter((settingType) => !existingTypes.has(settingType));
+
+    if (missingTypes.length === 0) return;
+
+    const { error } = await supabase
+      .from("government_contribution_settings")
+      .insert(
+        missingTypes.map(
+          (settingType) => defaultGovernmentContributionSettings[settingType]
+        )
+      );
+
+    if (error) throw error;
   },
 
   async getGovernmentReports(payrollPeriodId: string): Promise<GovernmentReportRow[]> {
