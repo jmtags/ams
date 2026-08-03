@@ -599,19 +599,31 @@ export function AdminEmployeeCompensationPage() {
         </Card>
 
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogContent className="max-w-3xl">
-            <DialogHeader>
-              <DialogTitle>
+          <DialogContent className="max-w-5xl max-h-[92vh] overflow-hidden flex flex-col">
+            <DialogHeader className="shrink-0 border-b">
+              <DialogTitle className="text-xl font-semibold">
                 {editingRecord ? "Edit Employee Compensation" : "Add Employee Compensation"}
               </DialogTitle>
               <DialogDescription>
-                Configure the payroll basis for the selected employee.
+                Configure pay rates, deduction rules, government contributions,
+                and effective dates for the selected employee.
               </DialogDescription>
             </DialogHeader>
 
-            <form onSubmit={handleSubmit}>
-              <DialogBody>
-                <div className="space-y-4">
+            <form onSubmit={handleSubmit} className="min-h-0 flex flex-1 flex-col">
+              <DialogBody className="min-h-0 flex-1 overflow-y-auto py-5">
+                <div className="space-y-5">
+                  <div className="rounded-lg border p-4">
+                    <div className="mb-4">
+                      <h3 className="text-base font-semibold text-neutral-900">
+                        Employee And Pay Type
+                      </h3>
+                      <p className="text-sm text-neutral-500">
+                        Select who this compensation setup belongs to and how
+                        the employee is paid.
+                      </p>
+                    </div>
+
                   <div className="grid md:grid-cols-3 gap-4">
                     <div>
                       <label className="block text-sm font-medium mb-1">Employee</label>
@@ -673,6 +685,18 @@ export function AdminEmployeeCompensationPage() {
                       </select>
                     </div>
                   </div>
+                  </div>
+
+                  <div className="rounded-lg border p-4">
+                    <div className="mb-4">
+                      <h3 className="text-base font-semibold text-neutral-900">
+                        Pay Rates
+                      </h3>
+                      <p className="text-sm text-neutral-500">
+                        Enter the monthly, daily, hourly, allowance, overtime,
+                        and break settings used for payroll computation.
+                      </p>
+                    </div>
 
                   <div className="grid md:grid-cols-3 gap-4">
                     <div>
@@ -723,7 +747,7 @@ export function AdminEmployeeCompensationPage() {
                     </div>
                   </div>
 
-                  <div className="grid md:grid-cols-3 gap-4">
+                  <div className="grid md:grid-cols-3 gap-4 mt-4">
                     <div>
                       <label className="block text-sm font-medium mb-1">Allowance</label>
                       <Input
@@ -774,8 +798,20 @@ export function AdminEmployeeCompensationPage() {
                       />
                     </div>
                   </div>
+                  </div>
 
-                  <div className="grid md:grid-cols-3 gap-4">
+                  <div className="rounded-lg border p-4">
+                    <div className="mb-4">
+                      <h3 className="text-base font-semibold text-neutral-900">
+                        Attendance Deductions
+                      </h3>
+                      <p className="text-sm text-neutral-500">
+                        Set how late, undertime, and absence deductions are
+                        handled for this employee.
+                      </p>
+                    </div>
+
+                  <div className="grid md:grid-cols-4 gap-4">
                     <div>
                       <label className="block text-sm font-medium mb-1">
                         Late Deduction Mode
@@ -852,10 +888,13 @@ export function AdminEmployeeCompensationPage() {
                       />
                     </div>
                   </div>
+                  </div>
 
                   <div className="rounded-lg border bg-neutral-50 p-4">
                     <div className="mb-3">
-                      <h3 className="font-medium">Government Contributions</h3>
+                      <h3 className="text-base font-semibold text-neutral-900">
+                        Government Contributions
+                      </h3>
                       <p className="text-sm text-neutral-500">
                         Enable mandated employee deductions and choose when the
                         monthly contribution is deducted.
@@ -932,6 +971,17 @@ export function AdminEmployeeCompensationPage() {
                     </div>
                   </div>
 
+                  <div className="rounded-lg border p-4">
+                    <div className="mb-4">
+                      <h3 className="text-base font-semibold text-neutral-900">
+                        Effective Dates
+                      </h3>
+                      <p className="text-sm text-neutral-500">
+                        Control when this compensation record starts, ends, and
+                        whether it is currently active.
+                      </p>
+                    </div>
+
                   <div className="grid md:grid-cols-3 gap-4">
                     <div>
                       <label className="block text-sm font-medium mb-1">
@@ -981,10 +1031,11 @@ export function AdminEmployeeCompensationPage() {
                       </label>
                     </div>
                   </div>
+                  </div>
                 </div>
               </DialogBody>
 
-              <DialogFooter>
+              <DialogFooter className="shrink-0 bg-white">
                 <Button type="button" variant="outline" onClick={closeDialog}>
                   Cancel
                 </Button>
