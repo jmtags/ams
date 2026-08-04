@@ -1,0 +1,499 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Employee 201 Files Manual</title>
+    <style>
+      @page { size: A4 landscape; margin: 0; }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        color: #172033;
+        font-family: Arial, Helvetica, sans-serif;
+        background: #e5e7eb;
+      }
+      .page {
+        position: relative;
+        width: 297mm;
+        height: 210mm;
+        padding: 14mm 16mm;
+        overflow: hidden;
+        page-break-after: always;
+        background: #f8fafc;
+      }
+      .page:last-child { page-break-after: auto; }
+      .cover {
+        display: flex;
+        align-items: center;
+        background:
+          radial-gradient(circle at 82% 16%, rgba(20,151,139,.28), transparent 27%),
+          linear-gradient(135deg, #122235, #1f3348);
+        color: white;
+      }
+      .eyebrow {
+        color: #7dd3c7;
+        font-size: 12pt;
+        font-weight: 700;
+        letter-spacing: 1px;
+        margin-bottom: 5mm;
+        text-transform: uppercase;
+      }
+      h1 { font-size: 36pt; line-height: 1.04; margin: 0 0 6mm; }
+      h2 { margin: 0; font-size: 25pt; letter-spacing: -.2px; }
+      h3 { margin: 0 0 3mm; font-size: 15.5pt; }
+      p { margin: 0; }
+      .cover p {
+        font-size: 15pt;
+        color: #dbe8ee;
+        max-width: 150mm;
+        line-height: 1.45;
+      }
+      .cover-card {
+        margin-left: auto;
+        width: 88mm;
+        padding: 9mm;
+        border: 1px solid rgba(255,255,255,.2);
+        border-radius: 7mm;
+        background: rgba(255,255,255,.1);
+      }
+      .cover-card div {
+        padding: 3.2mm 0;
+        border-bottom: 1px solid rgba(255,255,255,.16);
+        font-size: 12.5pt;
+      }
+      .cover-card div:last-child { border-bottom: 0; }
+      .subtitle {
+        margin: 2mm 0 7mm;
+        color: #526070;
+        font-size: 12.5pt;
+        line-height: 1.4;
+      }
+      .two { display: grid; grid-template-columns: 1fr 1fr; gap: 8mm; }
+      .three { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6mm; }
+      .card {
+        padding: 6mm;
+        border-radius: 5mm;
+        background: white;
+        border: 1px solid #d3dee6;
+        box-shadow: 0 2mm 8mm rgba(15,23,42,.05);
+      }
+      .card p, .card li {
+        color: #526070;
+        font-size: 11.5pt;
+        line-height: 1.45;
+      }
+      .card ul { margin: 3mm 0 0; padding-left: 6mm; }
+      .card li { margin: 1.8mm 0; }
+      .accent {
+        border-left: 2mm solid #14978b;
+      }
+      .gold { border-left-color: #e2a234; }
+      .blue { border-left-color: #4570c2; }
+      .red { border-left-color: #d04e4e; }
+      .purple { border-left-color: #6852ae; }
+      .steps {
+        display: grid;
+        grid-template-columns: 10mm 1fr;
+        gap: 4mm;
+        margin-bottom: 5mm;
+      }
+      .num {
+        width: 9mm;
+        height: 9mm;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        color: white;
+        background: #122235;
+        font-size: 12pt;
+        font-weight: 700;
+      }
+      .steps strong {
+        display: block;
+        margin-bottom: 1mm;
+        font-size: 12.5pt;
+      }
+      .steps span {
+        color: #526070;
+        font-size: 11pt;
+        line-height: 1.35;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        background: white;
+        border: 1px solid #d3dee6;
+        border-radius: 4mm;
+        overflow: hidden;
+        font-size: 10.5pt;
+      }
+      th {
+        background: #122235;
+        color: white;
+        text-align: left;
+        padding: 3mm;
+      }
+      td {
+        padding: 3mm;
+        border-top: 1px solid #e5ebf0;
+        color: #374151;
+        vertical-align: top;
+        line-height: 1.35;
+      }
+      .pill {
+        display: inline-block;
+        padding: 1.5mm 3mm;
+        border-radius: 999px;
+        font-size: 9.5pt;
+        font-weight: 700;
+        background: #e5e7eb;
+        color: #374151;
+      }
+      .submitted { background: #fef3c7; color: #92400e; }
+      .verified { background: #d1fae5; color: #065f46; }
+      .missing { background: #fee2e2; color: #991b1b; }
+      .expired { background: #fee2e2; color: #991b1b; }
+      .tip {
+        margin-top: 5mm;
+        padding: 4mm 5mm;
+        border-radius: 4mm;
+        background: #ecfdf5;
+        color: #065f46;
+        border: 1px solid #a7f3d0;
+        font-size: 11pt;
+        line-height: 1.35;
+      }
+      .warning {
+        background: #fffbeb;
+        color: #92400e;
+        border-color: #fde68a;
+      }
+      .footer {
+        position: absolute;
+        left: 16mm;
+        right: 16mm;
+        bottom: 7mm;
+        display: flex;
+        justify-content: space-between;
+        color: #7b8794;
+        font-size: 8.5pt;
+      }
+    </style>
+  </head>
+  <body>
+    <section class="page cover">
+      <div>
+        <div class="eyebrow">HRIS Admin Guide</div>
+        <h1>Employee 201 File Manual</h1>
+        <p>
+          A simple guide for HR and Admin users on how to upload, review,
+          track, and report employee 201 file documents in the HRIS.
+        </p>
+        <p style="font-size:11pt;margin-top:12mm;">
+          Written for non-technical users. No database or system knowledge is required.
+        </p>
+      </div>
+      <div class="cover-card">
+        <div>Upload employee documents</div>
+        <div>Track missing requirements</div>
+        <div>Review and verify files</div>
+        <div>Monitor expired documents</div>
+        <div>Prepare completion reports</div>
+      </div>
+      <div class="footer"><span>Employee 201 File Manual</span><span>Updated August 2026</span></div>
+    </section>
+
+    <section class="page">
+      <h2>1. What Is A Digital 201 File?</h2>
+      <p class="subtitle">
+        A 201 file is the employee's official HR file. In this system, the
+        physical folder becomes a secure digital folder.
+      </p>
+      <div class="two">
+        <div class="card accent">
+          <h3>What HR Can Store</h3>
+          <ul>
+            <li>Resume or CV</li>
+            <li>Employment contract</li>
+            <li>Government IDs and records</li>
+            <li>SSS, PhilHealth, Pag-IBIG, and TIN documents</li>
+            <li>Medical certificates and clearances</li>
+            <li>Training certificates</li>
+            <li>Performance and disciplinary documents</li>
+          </ul>
+        </div>
+        <div class="card blue">
+          <h3>Why It Helps</h3>
+          <ul>
+            <li>HR files are easier to find.</li>
+            <li>Missing documents are easier to track.</li>
+            <li>Expired documents can be monitored.</li>
+            <li>Employee files are kept in one organized place.</li>
+            <li>Reports show who has complete or incomplete files.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="tip">
+        Important: 201 files contain private employee information. Only authorized
+        Admin and HR users should manage these documents.
+      </div>
+      <div class="footer"><span>Employee 201 File Manual</span><span>1</span></div>
+    </section>
+
+    <section class="page">
+      <h2>2. Open The 201 Files Module</h2>
+      <p class="subtitle">
+        Use the Admin workspace to open the 201 file management page.
+      </p>
+      <div class="two">
+        <div class="card">
+          <h3>Steps</h3>
+          <div class="steps"><div class="num">1</div><div><strong>Log in to HRIS</strong><span>Use an Admin or HR account.</span></div></div>
+          <div class="steps"><div class="num">2</div><div><strong>Go to Admin Workspace</strong><span>Open the admin side of the system.</span></div></div>
+          <div class="steps"><div class="num">3</div><div><strong>Open Organization</strong><span>Look for the Organization menu in the sidebar.</span></div></div>
+          <div class="steps"><div class="num">4</div><div><strong>Click Employee 201 Files</strong><span>This opens the document management page.</span></div></div>
+        </div>
+        <div class="card accent">
+          <h3>Available Views</h3>
+          <table>
+            <tr><th>View</th><th>Purpose</th></tr>
+            <tr><td>Employee File</td><td>Upload, review, view, and delete employee documents.</td></tr>
+            <tr><td>Checklist Setup</td><td>Review the default categories and required document list.</td></tr>
+            <tr><td>Reports</td><td>Check file completion, missing files, expired files, and expiring documents.</td></tr>
+          </table>
+        </div>
+      </div>
+      <div class="warning tip">
+        If the page is empty the first time you open it, click Create Defaults.
+        This creates the standard 201 file categories and checklist items.
+      </div>
+      <div class="footer"><span>Employee 201 File Manual</span><span>2</span></div>
+    </section>
+
+    <section class="page">
+      <h2>3. Create The Default Checklist</h2>
+      <p class="subtitle">
+        The default checklist gives HR a starting list of common employee documents.
+      </p>
+      <div class="three">
+        <div class="card accent">
+          <h3>Click Create Defaults</h3>
+          <p>
+            Use this if categories or required documents are not yet available.
+            The system will add standard HR document folders and checklist items.
+          </p>
+        </div>
+        <div class="card gold">
+          <h3>What It Creates</h3>
+          <p>
+            Categories such as Personal Documents, Employment Documents,
+            Government Records, Payroll Documents, Training, and Exit Documents.
+          </p>
+        </div>
+        <div class="card blue">
+          <h3>When To Use It</h3>
+          <p>
+            Use it once during setup. If defaults already exist, the system will
+            not duplicate the same standard items.
+          </p>
+        </div>
+      </div>
+      <div style="margin-top:8mm;">
+        <table>
+          <tr><th>Default Required Document</th><th>Purpose</th></tr>
+          <tr><td>Resume / CV</td><td>Employee background and work history.</td></tr>
+          <tr><td>Valid Government ID</td><td>Identity verification.</td></tr>
+          <tr><td>Employment Contract</td><td>Signed employment agreement.</td></tr>
+          <tr><td>SSS, PhilHealth, Pag-IBIG, TIN Records</td><td>Government and payroll documentation.</td></tr>
+          <tr><td>Bank Account Form</td><td>Payroll bank details.</td></tr>
+        </table>
+      </div>
+      <div class="footer"><span>Employee 201 File Manual</span><span>3</span></div>
+    </section>
+
+    <section class="page">
+      <h2>4. Upload A Document</h2>
+      <p class="subtitle">
+        Upload documents from the Employee File view.
+      </p>
+      <div class="two">
+        <div class="card">
+          <h3>Steps</h3>
+          <div class="steps"><div class="num">1</div><div><strong>Select an employee</strong><span>Use the employee list on the left side.</span></div></div>
+          <div class="steps"><div class="num">2</div><div><strong>Click Upload Document</strong><span>This opens the upload form.</span></div></div>
+          <div class="steps"><div class="num">3</div><div><strong>Enter document details</strong><span>Add title, category, requirement, expiry date if needed, and remarks.</span></div></div>
+          <div class="steps"><div class="num">4</div><div><strong>Select the file</strong><span>Choose the PDF, image, or document from your computer.</span></div></div>
+          <div class="steps"><div class="num">5</div><div><strong>Click Upload</strong><span>The file will be stored in the employee's 201 file.</span></div></div>
+        </div>
+        <div class="card accent">
+          <h3>Fields In The Upload Form</h3>
+          <table>
+            <tr><th>Field</th><th>Meaning</th></tr>
+            <tr><td>Title</td><td>Name of the document, such as Employment Contract.</td></tr>
+            <tr><td>Category</td><td>Folder where the document belongs.</td></tr>
+            <tr><td>Requirement</td><td>Checklist item connected to the upload.</td></tr>
+            <tr><td>Expiry Date</td><td>Use this for documents that expire.</td></tr>
+            <tr><td>Remarks</td><td>Optional notes for HR reference.</td></tr>
+          </table>
+        </div>
+      </div>
+      <div class="tip">
+        Tip: If you upload from a missing checklist item, the system already
+        fills in the matching requirement for you.
+      </div>
+      <div class="footer"><span>Employee 201 File Manual</span><span>4</span></div>
+    </section>
+
+    <section class="page">
+      <h2>5. Understand Document Status</h2>
+      <p class="subtitle">
+        Status tells HR what action is needed for each document.
+      </p>
+      <table>
+        <tr><th>Status</th><th>Meaning</th><th>What HR Should Do</th></tr>
+        <tr>
+          <td><span class="pill missing">Missing</span></td>
+          <td>The required document has not been uploaded yet.</td>
+          <td>Ask the employee to submit the document or upload it if HR already has a copy.</td>
+        </tr>
+        <tr>
+          <td><span class="pill submitted">Submitted</span></td>
+          <td>The document has been uploaded but not yet confirmed by HR.</td>
+          <td>Open the file, check if it is correct, then mark it Verified if acceptable.</td>
+        </tr>
+        <tr>
+          <td><span class="pill verified">Verified</span></td>
+          <td>HR has reviewed and accepted the document.</td>
+          <td>No action needed unless the document expires or must be replaced.</td>
+        </tr>
+        <tr>
+          <td><span class="pill missing">Rejected</span></td>
+          <td>The uploaded document is not acceptable or needs correction.</td>
+          <td>Add remarks so HR knows why it was rejected and request a replacement.</td>
+        </tr>
+        <tr>
+          <td><span class="pill expired">Expired</span></td>
+          <td>The document expiry date has already passed.</td>
+          <td>Request an updated document from the employee.</td>
+        </tr>
+      </table>
+      <div class="warning tip">
+        For documents with expiry dates, always enter the expiry date during upload.
+        This helps the Reports view show expired and expiring documents.
+      </div>
+      <div class="footer"><span>Employee 201 File Manual</span><span>5</span></div>
+    </section>
+
+    <section class="page">
+      <h2>6. Review, View, Or Delete A Document</h2>
+      <p class="subtitle">
+        HR can review documents from the Uploaded Documents table.
+      </p>
+      <div class="three">
+        <div class="card accent">
+          <h3>View</h3>
+          <p>
+            Click the View button to open the file. The system creates a temporary
+            secure link so HR can preview or download the document.
+          </p>
+        </div>
+        <div class="card blue">
+          <h3>Review</h3>
+          <p>
+            Click the Edit or Review button to update the title, category,
+            requirement, status, expiry date, and remarks.
+          </p>
+        </div>
+        <div class="card red">
+          <h3>Delete</h3>
+          <p>
+            Click Delete only when the document was uploaded by mistake or must
+            be removed. Deleted files are removed from the employee file.
+          </p>
+        </div>
+      </div>
+      <div style="margin-top:8mm;" class="card">
+        <h3>Recommended Review Habit</h3>
+        <ul>
+          <li>Open the document first before marking it Verified.</li>
+          <li>Use Remarks when rejecting a document.</li>
+          <li>Enter expiry dates for IDs, clearances, medical certificates, and permits.</li>
+          <li>Do not delete documents unless you are sure they are not needed.</li>
+        </ul>
+      </div>
+      <div class="footer"><span>Employee 201 File Manual</span><span>6</span></div>
+    </section>
+
+    <section class="page">
+      <h2>7. Use The Reports View</h2>
+      <p class="subtitle">
+        The Reports view helps HR monitor employee file completion.
+      </p>
+      <div class="two">
+        <div class="card accent">
+          <h3>What The Report Shows</h3>
+          <ul>
+            <li>Completion percentage</li>
+            <li>Required document count</li>
+            <li>Submitted document count</li>
+            <li>Verified document count</li>
+            <li>Missing document count</li>
+            <li>Expired document count</li>
+            <li>Expiring soon document count</li>
+          </ul>
+        </div>
+        <div class="card blue">
+          <h3>How HR Can Use It</h3>
+          <ul>
+            <li>Find employees with incomplete 201 files.</li>
+            <li>Follow up missing required documents.</li>
+            <li>Request updated copies of expired files.</li>
+            <li>Prepare HR compliance summaries for management.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="tip">
+        A 100 percent completion means all required checklist items have a
+        submitted or verified document. HR may still review whether each file is
+        complete and acceptable.
+      </div>
+      <div class="footer"><span>Employee 201 File Manual</span><span>7</span></div>
+    </section>
+
+    <section class="page">
+      <h2>8. Good 201 File Practices</h2>
+      <p class="subtitle">
+        These habits keep employee files clean, useful, and safer to manage.
+      </p>
+      <div class="two">
+        <div class="card accent">
+          <h3>Do This</h3>
+          <ul>
+            <li>Use clear document titles.</li>
+            <li>Connect uploads to the correct requirement.</li>
+            <li>Mark documents Verified only after checking them.</li>
+            <li>Use expiry dates when applicable.</li>
+            <li>Review the report regularly.</li>
+          </ul>
+        </div>
+        <div class="card red">
+          <h3>Avoid This</h3>
+          <ul>
+            <li>Uploading the same document many times.</li>
+            <li>Leaving unclear file names without a proper title.</li>
+            <li>Marking files Verified without opening them.</li>
+            <li>Sharing employee documents outside authorized HR channels.</li>
+            <li>Deleting files without confirming they are not needed.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="warning tip">
+        Privacy reminder: 201 files may contain IDs, government numbers, medical
+        documents, payroll documents, and other sensitive records. Handle them
+        carefully and limit access to authorized HR/Admin users.
+      </div>
+      <div class="footer"><span>Employee 201 File Manual</span><span>8</span></div>
+    </section>
+  </body>
+</html>
