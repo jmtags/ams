@@ -12,6 +12,7 @@ import { AdminDashboardPage } from "./pages/admin-dashboard";
 import { AdminReportsPage } from "./pages/admin-reports";
 
 import { UserManagementPage } from "./pages/user-management";
+import { AdminEmployee201FilesPage } from "./pages/admin-employee-201-files";
 import { DepartmentManagementPage } from "./pages/department-management";
 import { LocationManagementPage } from "./pages/location-management";
 import ShiftManagementPage from "./pages/ShiftManagementPage";
@@ -141,6 +142,14 @@ export const router = createBrowserRouter([
     element: (
       <ProtectedRoute allowedRoles={["admin", "hr", "payroll"]}>
         <UserManagementPage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/admin/employee-201-files",
+    element: (
+      <ProtectedRoute allowedRoles={["admin", "hr"]}>
+        <AdminEmployee201FilesPage />
       </ProtectedRoute>
     ),
   },

@@ -3,6 +3,7 @@ import { NavLink, useLocation } from "react-router";
 import {
   LayoutDashboard,
   Users,
+  FolderOpen,
   Building2,
   MapPin,
   Clock3,
@@ -40,6 +41,7 @@ type NavItem = {
   label: string;
   to: string;
   icon: ReactNode;
+  roles?: AppRole[];
   badgeKey?: "leaveRequests" | "attendanceAdjustments" | "shiftChangeRequests";
 };
 
@@ -74,6 +76,12 @@ const navGroups: NavGroup[] = [
         label: "Users",
         to: "/admin/users",
         icon: <Users className="h-4 w-4" />,
+      },
+      {
+        label: "Employee 201 Files",
+        to: "/admin/employee-201-files",
+        icon: <FolderOpen className="h-4 w-4" />,
+        roles: ["admin", "hr"],
       },
       {
         label: "Departments",
@@ -256,17 +264,27 @@ function SidebarLink({
 function SidebarGroup({
   group,
   badgeCounts,
+  currentRole,
   defaultOpen = true,
 }: {
   group: NavGroup;
   badgeCounts: PendingCounts;
+  currentRole: AppRole;
   defaultOpen?: boolean;
 }) {
   const location = useLocation();
 
+  const visibleItems = useMemo(
+    () =>
+      group.items.filter(
+        (item) => !item.roles || item.roles.includes(currentRole)
+      ),
+    [currentRole, group.items]
+  );
+
   const hasActiveChild = useMemo(() => {
-    return group.items.some((item) => location.pathname.startsWith(item.to));
-  }, [group.items, location.pathname]);
+    return visibleItems.some((item) => location.pathname.startsWith(item.to));
+  }, [visibleItems, location.pathname]);
 
   const [open, setOpen] = useState(defaultOpen || hasActiveChild);
 
@@ -288,7 +306,7 @@ function SidebarGroup({
 
       {open && (
         <div className="space-y-1">
-          {group.items.map((item) => {
+          {visibleItems.map((item) => {
             const count =
               item.badgeKey === "leaveRequests"
                 ? badgeCounts.leaveRequests
@@ -490,6 +508,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
                 key={group.label}
                 group={group}
                 badgeCounts={badgeCounts}
+                currentRole={currentRole}
               />
             ))}
           </div>
@@ -533,6 +552,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
                     key={group.label}
                     group={group}
                     badgeCounts={badgeCounts}
+                    currentRole={currentRole}
                   />
                 ))}
               </div>
