@@ -621,6 +621,35 @@ export const payrollService = {
     return (data ?? []).map(mapPayrollRecord);
   },
 
+  async getRecordsByPeriodDateRange(
+    dateFrom: string,
+    dateTo: string
+  ): Promise<PayrollRecord[]> {
+    const { data, error } = await supabase
+      .from("payroll_records")
+      .select(`
+        *,
+        users (
+          id,
+          name,
+          email
+        ),
+        payroll_periods!inner (
+          id,
+          name,
+          date_from,
+          date_to,
+          pay_date
+        )
+      `)
+      .gte("payroll_periods.date_from", dateFrom)
+      .lte("payroll_periods.date_to", dateTo)
+      .order("created_at", { ascending: false });
+
+    if (error) throw error;
+    return (data ?? []).map(mapPayrollRecord);
+  },
+
   async getRecordDetails(recordId: string): Promise<{
     record: PayrollRecord | null;
     items: PayrollRecordItem[];

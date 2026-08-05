@@ -179,6 +179,11 @@ const navGroups: NavGroup[] = [
         icon: <FileText className="h-4 w-4" />,
       },
       {
+        label: "13th Month Pay",
+        to: "/admin/13th-month-pay",
+        icon: <Banknote className="h-4 w-4" />,
+      },
+      {
         label: "Payroll Adjustments",
         to: "/admin/payroll-adjustments",
         icon: <FileText className="h-4 w-4" />,

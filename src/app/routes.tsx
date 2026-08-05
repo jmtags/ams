@@ -32,6 +32,7 @@ import { AdminEmployeeCompensationPage } from "./pages/admin-employee-compensati
 import { AdminPayrollGeneratePage } from "./pages/admin-payroll-generate";
 import { AdminPayrollRecordsPage } from "./pages/admin-payroll-records";
 import { AdminPayrollDetailsPage } from "./pages/admin-payroll-details";
+import { AdminThirteenthMonthPayPage } from "./pages/admin-thirteenth-month-pay";
 
 import { AdminPayrollAdjustmentsPage } from "./pages/admin-payroll-adjustments";
 import { AdminRecurringDeductionsPage } from "./pages/admin-recurring-deductions";
@@ -290,6 +291,14 @@ export const router = createBrowserRouter([
     element: (
       <ProtectedRoute allowedRoles={["admin", "hr", "payroll"]}>
         <AdminPayrollDetailsPage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/admin/13th-month-pay",
+    element: (
+      <ProtectedRoute allowedRoles={["admin", "hr", "payroll"]}>
+        <AdminThirteenthMonthPayPage />
       </ProtectedRoute>
     ),
   },
