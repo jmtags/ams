@@ -1,4 +1,4 @@
-import { ChangeEvent, useEffect, useRef, useState } from 'react';
+import { ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Clock,
   AlarmClock,
@@ -108,6 +108,48 @@ type TodayShiftRequirement = {
 
 const ANNOUNCEMENT_PREVIEW_LENGTH = 420;
 const ANNOUNCEMENT_ROTATION_INTERVAL_MS = 12000;
+const ATTENDANCE_HEATMAP_DAYS = 91;
+const heatmapDayLabels = ["", "Mon", "", "Wed", "", "Fri", ""];
+
+const heatmapStatusStyles: Record<string, { className: string; label: string }> = {
+  present: { className: "bg-emerald-600", label: "Present" },
+  overtime: { className: "bg-emerald-700", label: "Overtime" },
+  late: { className: "bg-amber-400", label: "Late" },
+  late_overtime: { className: "bg-amber-500", label: "Late + overtime" },
+  absent: { className: "bg-red-500", label: "Absent" },
+  holiday: { className: "bg-sky-300", label: "Holiday" },
+  restday: { className: "bg-slate-300", label: "Rest day" },
+  holiday_restday: { className: "bg-sky-400", label: "Holiday + rest day" },
+  worked_holiday: { className: "bg-teal-500", label: "Worked holiday" },
+  worked_restday: { className: "bg-teal-600", label: "Worked rest day" },
+  worked_holiday_restday: {
+    className: "bg-teal-700",
+    label: "Worked holiday + rest day",
+  },
+};
+
+const formatHeatmapDateKey = (date: Date) => {
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  const day = `${date.getDate()}`.padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const getRecentHeatmapDates = () => {
+  const today = new Date();
+  const start = new Date(today);
+  start.setDate(today.getDate() - ATTENDANCE_HEATMAP_DAYS + 1);
+
+  const dates: Date[] = [];
+  const cursor = new Date(start);
+
+  while (cursor <= today) {
+    dates.push(new Date(cursor));
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  return dates;
+};
 
 const initialPunchAlterationForm: PunchAlterationFormState = {
   requested_clock_in: '',
@@ -203,6 +245,7 @@ export function UserDashboardPage() {
   const [currentTime, setCurrentTime] = useState(new Date());
 
   const [attendanceHistory, setAttendanceHistory] = useState<AttendanceRecord[]>([]);
+  const [attendanceHeatmapHistory, setAttendanceHeatmapHistory] = useState<AttendanceRecord[]>([]);
   const [todayAttendance, setTodayAttendance] = useState<AttendanceRecord | null>(null);
   const [todayOverview, setTodayOverview] = useState<TodayOverview | null>(null);
   const [locations, setLocations] = useState<Location[]>([]);
@@ -365,8 +408,9 @@ export function UserDashboardPage() {
       }
       setError('');
 
-      const [history, today, locs, overview] = await Promise.all([
+      const [history, heatmapHistory, today, locs, overview] = await Promise.all([
         attendanceService.getAttendanceHistory(user.id, 10),
+        attendanceService.getAttendanceHistory(user.id, ATTENDANCE_HEATMAP_DAYS),
         attendanceService.getTodayAttendance(user.id),
         locationService.getAllLocations(),
         attendanceService.getTodayOverview(user.id).catch((overviewError) => {
@@ -376,6 +420,7 @@ export function UserDashboardPage() {
       ]);
 
       setAttendanceHistory(history);
+      setAttendanceHeatmapHistory(heatmapHistory);
       setTodayAttendance(today);
       setLocations(locs);
       setTodayOverview(overview);
@@ -412,8 +457,9 @@ export function UserDashboardPage() {
     if (!user?.id) return;
 
     try {
-      const [history, today, overview] = await Promise.all([
+      const [history, heatmapHistory, today, overview] = await Promise.all([
         attendanceService.getAttendanceHistory(user.id, 10),
+        attendanceService.getAttendanceHistory(user.id, ATTENDANCE_HEATMAP_DAYS),
         attendanceService.getTodayAttendance(user.id),
         attendanceService.getTodayOverview(user.id).catch((overviewError) => {
           console.error("Error refreshing today's overview:", overviewError);
@@ -422,6 +468,7 @@ export function UserDashboardPage() {
       ]);
 
       setAttendanceHistory(history);
+      setAttendanceHeatmapHistory(heatmapHistory);
       setTodayAttendance(today);
       setTodayOverview(overview);
 
@@ -720,6 +767,54 @@ export function UserDashboardPage() {
   const lateDays = attendanceHistory.filter(
     (record) => record.status === "late"
   ).length;
+  const attendanceHeatmap = useMemo(() => {
+    const recordsByDate = new Map(
+      attendanceHeatmapHistory.map((record) => [record.date, record])
+    );
+    const dates = getRecentHeatmapDates();
+    const firstDayOffset = dates[0]?.getDay() ?? 0;
+    const cells: Array<{
+      key: string;
+      dayIndex: number;
+      className: string;
+      title: string;
+      monthLabel?: string;
+    }> = [];
+
+    for (let index = 0; index < firstDayOffset; index += 1) {
+      cells.push({
+        key: `empty-${index}`,
+        dayIndex: index,
+        className: "bg-transparent",
+        title: "",
+      });
+    }
+
+    dates.forEach((date, index) => {
+      const key = formatHeatmapDateKey(date);
+      const record = recordsByDate.get(key);
+      const status = String(record?.status ?? "");
+      const style = heatmapStatusStyles[status];
+
+      cells.push({
+        key,
+        dayIndex: date.getDay(),
+        className: style?.className ?? "bg-neutral-200",
+        title: record
+          ? `${formatDate(key)} | ${style?.label ?? record.status}`
+          : `${formatDate(key)} | No record`,
+        monthLabel:
+          date.getDate() <= 7 && (index === 0 || date.getDate() === 1)
+            ? date.toLocaleDateString("en-US", { month: "short" })
+            : undefined,
+      });
+    });
+
+    return {
+      cells,
+      weekCount: Math.max(1, Math.ceil(cells.length / 7)),
+    };
+  }, [attendanceHeatmapHistory]);
   const attendanceState = todayAttendance?.clockOut
     ? "Shift completed"
     : todayAttendance?.clockIn
@@ -1214,6 +1309,88 @@ export function UserDashboardPage() {
                     <p className="text-2xl font-semibold text-neutral-950">
                       {attendanceHistory.length}
                     </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="rounded-2xl border-neutral-200/80 shadow-sm">
+              <CardHeader className="p-5 pb-3 sm:p-6 sm:pb-3">
+                <CardTitle className="text-lg font-semibold">
+                  Attendance Activity
+                </CardTitle>
+                <CardDescription>Last 13 weeks</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4 p-5 pt-2 sm:p-6 sm:pt-2">
+                <div className="overflow-x-auto pb-1">
+                  <div
+                    className="grid min-w-max gap-1"
+                    style={{
+                      gridTemplateColumns: `28px repeat(${attendanceHeatmap.weekCount}, 12px)`,
+                      gridTemplateRows: "18px repeat(7, 12px)",
+                    }}
+                  >
+                    <div />
+                    {Array.from({ length: attendanceHeatmap.weekCount }).map(
+                      (_, weekIndex) => {
+                        const monthLabel = attendanceHeatmap.cells.find(
+                          (cell, cellIndex) =>
+                            Math.floor(cellIndex / 7) === weekIndex &&
+                            cell.monthLabel
+                        )?.monthLabel;
+
+                        return (
+                          <div
+                            key={`month-${weekIndex}`}
+                            className="text-[9px] leading-none text-neutral-500"
+                          >
+                            {monthLabel}
+                          </div>
+                        );
+                      }
+                    )}
+
+                    {heatmapDayLabels.map((label, index) => (
+                      <div
+                        key={`day-${index}`}
+                        className="text-[9px] leading-3 text-neutral-500"
+                        style={{ gridColumn: 1, gridRow: index + 2 }}
+                      >
+                        {label}
+                      </div>
+                    ))}
+
+                    {attendanceHeatmap.cells.map((cell, index) => (
+                      <div
+                        key={cell.key}
+                        title={cell.title}
+                        aria-label={cell.title || undefined}
+                        className={`h-3 w-3 rounded-[3px] ${cell.className}`}
+                        style={{
+                          gridColumn: Math.floor(index / 7) + 2,
+                          gridRow: cell.dayIndex + 2,
+                        }}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-[11px] text-neutral-600">
+                  <div className="flex items-center gap-1.5">
+                    <span className="h-2.5 w-2.5 rounded-[3px] bg-emerald-600" />
+                    Present
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="h-2.5 w-2.5 rounded-[3px] bg-amber-400" />
+                    Late
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="h-2.5 w-2.5 rounded-[3px] bg-red-500" />
+                    Absent
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="h-2.5 w-2.5 rounded-[3px] bg-neutral-200" />
+                    No record
                   </div>
                 </div>
               </CardContent>
