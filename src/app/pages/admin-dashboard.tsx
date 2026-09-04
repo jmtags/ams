@@ -3,14 +3,6 @@ import { format } from "date-fns"
 import { toZonedTime } from "date-fns-tz"
 import * as XLSX from "xlsx"
 import { saveAs } from "file-saver"
-import {
-  PieChart,
-  Pie,
-  Cell,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-} from "recharts"
 
 import { AdminLayout } from "../layouts/admin-layout"
 import {
@@ -64,9 +56,56 @@ type DashboardAttendanceRow = AttendanceRecord & {
   leaveRequestId?: string | null
 }
 
-type ChartItem = {
-  name: string
-  value: number
+type AttendanceHeatmapDay = {
+  date: string
+  dayIndex: number
+  title: string
+  className: string
+  monthLabel?: string
+}
+
+const dayLabels = ["", "Mon", "", "Wed", "", "Fri", ""]
+
+const presentStatuses = new Set([
+  "present",
+  "overtime",
+  "worked_holiday",
+  "worked_restday",
+  "worked_holiday_restday",
+])
+
+const lateStatuses = new Set(["late", "late_overtime"])
+
+const holidayStatuses = new Set(["holiday", "holiday_restday"])
+
+const parseLocalDate = (value: string) => {
+  const [year, month, day] = value.split("-").map(Number)
+  return new Date(year, month - 1, day)
+}
+
+const formatDateKey = (date: Date) => format(date, "yyyy-MM-dd")
+
+const getDateRange = (start: string, end: string) => {
+  const startDate = parseLocalDate(start)
+  const endDate = parseLocalDate(end)
+
+  if (
+    !Number.isFinite(startDate.getTime()) ||
+    !Number.isFinite(endDate.getTime()) ||
+    startDate > endDate
+  ) {
+    return []
+  }
+
+  const dates: Date[] = []
+  const cursor = new Date(startDate)
+
+  while (cursor <= endDate) {
+    dates.push(new Date(cursor))
+    cursor.setDate(cursor.getDate() + 1)
+  }
+
+  return dates
 }
 
 const getTodayDate = () => {
@@ -429,48 +468,96 @@ export function AdminDashboardPage() {
     saveAs(blob, `attendance-user-summary-${startDate}-to-${endDate}.xlsx`)
   }
 
-  const chartData: ChartItem[] = useMemo(() => {
-    const presentCount = filteredAttendance.filter((a) =>
-      [
-        "present",
-        "overtime",
-        "worked_holiday",
-        "worked_restday",
-        "worked_holiday_restday",
-      ].includes(a.status)
-    ).length
+  const attendanceHeatmap = useMemo(() => {
+    const recordsByDate = new Map<string, DashboardAttendanceRow[]>()
 
-    const lateCount = filteredAttendance.filter((a) =>
-      ["late", "late_overtime"].includes(a.status)
-    ).length
+    filteredAttendance.forEach((record) => {
+      if (!record.date) return
+      const existing = recordsByDate.get(record.date) ?? []
+      existing.push(record)
+      recordsByDate.set(record.date, existing)
+    })
 
-    const absentCount = filteredAttendance.filter(
-      (a) => a.status === "absent"
-    ).length
+    const dates = getDateRange(startDate, endDate)
+    const firstDayOffset = dates[0]?.getDay() ?? 0
+    const cells: AttendanceHeatmapDay[] = []
 
-    const holidayCount = filteredAttendance.filter((a) =>
-      ["holiday", "holiday_restday"].includes(a.status)
-    ).length
+    for (let index = 0; index < firstDayOffset; index += 1) {
+      cells.push({
+        date: `empty-start-${index}`,
+        dayIndex: index,
+        title: "",
+        className: "bg-transparent",
+      })
+    }
 
-    const restdayCount = filteredAttendance.filter(
-      (a) => a.status === "restday"
-    ).length
+    dates.forEach((date, index) => {
+      const dateKey = formatDateKey(date)
+      const records = recordsByDate.get(dateKey) ?? []
+      const presentCount = records.filter((record) =>
+        presentStatuses.has(record.status)
+      ).length
+      const lateCount = records.filter((record) =>
+        lateStatuses.has(record.status)
+      ).length
+      const absentCount = records.filter((record) => record.status === "absent")
+        .length
+      const leaveCount = records.filter(
+        (record) => record.status === "approved_leave"
+      ).length
+      const holidayCount = records.filter((record) =>
+        holidayStatuses.has(record.status)
+      ).length
+      const restDayCount = records.filter((record) => record.status === "restday")
+        .length
+      const totalCount = records.length
+      const attendedCount = presentCount + lateCount
+      const attendanceRate = totalCount > 0 ? attendedCount / totalCount : 0
+      const absentRate = totalCount > 0 ? absentCount / totalCount : 0
+      const lateRate = totalCount > 0 ? lateCount / totalCount : 0
 
-    const leaveCount = filteredAttendance.filter(
-      (a) => a.status === "approved_leave"
-    ).length
+      let className = "bg-neutral-200"
 
-    return [
-      { name: "Present", value: presentCount },
-      { name: "Late", value: lateCount },
-      { name: "Absent", value: absentCount },
-      { name: "Approved Leave", value: leaveCount },
-      { name: "Holiday", value: holidayCount },
-      { name: "Rest Day", value: restdayCount },
-    ].filter((item) => item.value > 0)
-  }, [filteredAttendance])
+      if (totalCount === 0) {
+        className = "bg-neutral-200"
+      } else if (absentRate >= 0.25) {
+        className = "bg-red-500"
+      } else if (lateRate >= 0.25) {
+        className = "bg-amber-400"
+      } else if (attendanceRate >= 0.9) {
+        className = "bg-emerald-600"
+      } else if (attendanceRate >= 0.7) {
+        className = "bg-emerald-500"
+      } else if (attendanceRate > 0) {
+        className = "bg-lime-400"
+      } else if (leaveCount > 0) {
+        className = "bg-cyan-400"
+      } else if (holidayCount > 0 || restDayCount > 0) {
+        className = "bg-sky-300"
+      }
 
-  const chartColors = ["#22c55e", "#f59e0b", "#ef4444", "#06b6d4", "#3b82f6", "#8b5cf6"]
+      cells.push({
+        date: dateKey,
+        dayIndex: date.getDay(),
+        title: `${format(date, "MMM d, yyyy")}: ${totalCount} record${
+          totalCount === 1 ? "" : "s"
+        } | Present ${presentCount}, Late ${lateCount}, Absent ${absentCount}, Leave ${leaveCount}, Holiday/Rest ${holidayCount + restDayCount}`,
+        className,
+        monthLabel:
+          date.getDate() <= 7 && (index === 0 || date.getDate() === 1)
+            ? format(date, "MMM")
+            : undefined,
+      })
+    })
+
+    const weekCount = Math.max(1, Math.ceil(cells.length / 7))
+
+    return {
+      cells,
+      weekCount,
+      hasRecords: filteredAttendance.length > 0,
+    }
+  }, [filteredAttendance, startDate, endDate])
 
   if (isLoading) {
     return (
@@ -538,38 +625,103 @@ export function AdminDashboardPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Attendance Overview</CardTitle>
+            <CardTitle>Attendance Heatmap</CardTitle>
             <CardDescription>
-              Summary based on filtered attendance and approved leave records
+              Daily attendance health based on filtered records
             </CardDescription>
           </CardHeader>
 
           <CardContent>
-            {chartData.length === 0 ? (
-              <div className="h-[300px] flex items-center justify-center text-neutral-500">
+            {!attendanceHeatmap.hasRecords ? (
+              <div className="h-[220px] flex items-center justify-center text-neutral-500">
                 No attendance data available for the selected filters.
               </div>
             ) : (
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={chartData}
-                    dataKey="value"
-                    nameKey="name"
-                    outerRadius={100}
-                    label
+              <div className="space-y-4">
+                <div className="overflow-x-auto pb-2">
+                  <div
+                    className="grid gap-1 min-w-max"
+                    style={{
+                      gridTemplateColumns: `32px repeat(${attendanceHeatmap.weekCount}, 14px)`,
+                      gridTemplateRows: "20px repeat(7, 14px)",
+                    }}
                   >
-                    {chartData.map((_, index) => (
-                      <Cell
-                        key={index}
-                        fill={chartColors[index % chartColors.length]}
+                    <div />
+                    {Array.from({ length: attendanceHeatmap.weekCount }).map(
+                      (_, weekIndex) => {
+                        const monthLabel = attendanceHeatmap.cells.find(
+                          (cell, cellIndex) =>
+                            Math.floor(cellIndex / 7) === weekIndex &&
+                            cell.monthLabel
+                        )?.monthLabel
+
+                        return (
+                          <div
+                            key={`month-${weekIndex}`}
+                            className="text-[10px] leading-none text-neutral-500"
+                          >
+                            {monthLabel}
+                          </div>
+                        )
+                      }
+                    )}
+
+                    {dayLabels.map((label, index) => (
+                      <div
+                        key={`day-${index}`}
+                        className="text-[10px] leading-[14px] text-neutral-500"
+                        style={{ gridColumn: 1, gridRow: index + 2 }}
+                      >
+                        {label}
+                      </div>
+                    ))}
+
+                    {attendanceHeatmap.cells.map((cell, index) => (
+                      <div
+                        key={cell.date}
+                        title={cell.title}
+                        aria-label={cell.title || undefined}
+                        className={`h-3.5 w-3.5 rounded-sm ${cell.className}`}
+                        style={{
+                          gridColumn: Math.floor(index / 7) + 2,
+                          gridRow: cell.dayIndex + 2,
+                        }}
                       />
                     ))}
-                  </Pie>
-                  <Tooltip />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-4 text-xs text-neutral-600">
+                  <div className="flex items-center gap-2">
+                    <span className="h-3 w-3 rounded-sm bg-emerald-600" />
+                    High attendance
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="h-3 w-3 rounded-sm bg-lime-400" />
+                    Partial attendance
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="h-3 w-3 rounded-sm bg-amber-400" />
+                    Late trend
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="h-3 w-3 rounded-sm bg-red-500" />
+                    Absence trend
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="h-3 w-3 rounded-sm bg-cyan-400" />
+                    Approved leave
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="h-3 w-3 rounded-sm bg-sky-300" />
+                    Holiday or rest day
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="h-3 w-3 rounded-sm bg-neutral-200" />
+                    No record
+                  </div>
+                </div>
+              </div>
             )}
           </CardContent>
         </Card>
