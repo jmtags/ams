@@ -15,6 +15,7 @@ serve(async (req) => {
       pagibig,
       philhealth,
       atm_number,
+      is_active,
     } = body
 
     // IMPORTANT: service role key (admin permissions)
@@ -48,6 +49,7 @@ serve(async (req) => {
         pagibig,
         philhealth,
         atm_number,
+        is_active: is_active ?? true,
       })
 
     if (dbError) throw dbError

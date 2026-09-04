@@ -7,6 +7,7 @@ export type User = {
   role: "user" | "admin" | "hr" | "payroll" ;
   shift_id?: string | null;
   shift_name?: string | null;
+  is_active?: boolean | null;
   sss?: string | null;
   pagibig?: string | null;
   philhealth?: string | null;

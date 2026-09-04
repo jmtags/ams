@@ -41,6 +41,7 @@ type DbUser = {
   email: string
   department: string | null
   shift_id: string | null
+  is_active?: boolean | null
 }
 
 type DbShift = {
@@ -306,7 +307,11 @@ export const attendanceSummaryService = {
       approvedLeaveDatesRes,
       shiftChangeRequestsRes,
     ] = await Promise.all([
-      supabase.from("users").select("id, name, email, department, shift_id").order("name"),
+      supabase
+        .from("users")
+        .select("id, name, email, department, shift_id, is_active")
+        .eq("is_active", true)
+        .order("name"),
       supabase.from("shifts").select("id, location_id"),
       supabase
         .from("attendance")

@@ -9,6 +9,7 @@ export type User = {
   department: string | null;
   role: UserRole;
   shift_id?: string | null;
+  is_active?: boolean | null;
   sss?: string | null;
   pagibig?: string | null;
   philhealth?: string | null;
@@ -40,6 +41,7 @@ type AdminUpdateUserPayload = {
   atm_number?: string | null;
   password?: string;
   shift_id?: string | null;
+  is_active?: boolean;
 };
 
 type CreateUserByAdminPayload = {
@@ -53,6 +55,7 @@ type CreateUserByAdminPayload = {
   philhealth?: string | null;
   atm_number?: string | null;
   shift_id?: string | null;
+  is_active?: boolean;
 };
 
 const cleanPayload = <T extends Record<string, any>>(payload: T): Partial<T> => {
@@ -233,6 +236,7 @@ updateUserByAdmin: async (payload: AdminUpdateUserPayload): Promise<User> => {
       department: payload.department ?? null,
       role: payload.role ?? "user",
       shift_id: payload.shift_id ?? null,
+      is_active: payload.is_active ?? true,
       sss: payload.sss ?? null,
       pagibig: payload.pagibig ?? null,
       philhealth: payload.philhealth ?? null,

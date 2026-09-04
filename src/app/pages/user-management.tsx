@@ -55,6 +55,7 @@ type UserFormData = {
   department: string;
   role: "user" | "admin" | "hr" | "payroll";
   shift_id: string;
+  is_active: boolean;
   sss: string;
   pagibig: string;
   philhealth: string;
@@ -74,6 +75,7 @@ const initialFormData: UserFormData = {
   department: "",
   role: "user",
   shift_id: "",
+  is_active: true,
   sss: "",
   pagibig: "",
   philhealth: "",
@@ -145,13 +147,15 @@ export function UserManagementPage() {
         const department = user.department?.toLowerCase() ?? "";
         const role = user.role?.toLowerCase() ?? "";
         const shiftName = (user as any).shift_name?.toLowerCase?.() ?? "";
+        const status = user.is_active === false ? "inactive" : "active";
 
         return (
           name.includes(query) ||
           email.includes(query) ||
           department.includes(query) ||
           role.includes(query) ||
-          shiftName.includes(query)
+          shiftName.includes(query) ||
+          status.includes(query)
         );
       })
     );
@@ -221,6 +225,7 @@ export function UserManagementPage() {
         department: user.department ?? "",
         role: user.role ?? "user",
         shift_id: (user as any).shift_id ?? "",
+        is_active: user.is_active ?? true,
         sss: user.sss ?? "",
         pagibig: user.pagibig ?? "",
         philhealth: user.philhealth ?? "",
@@ -257,6 +262,7 @@ export function UserManagementPage() {
           department: formData.department || null,
           role: formData.role,
           shift_id: formData.shift_id || null,
+          is_active: formData.is_active,
           sss: formData.sss || null,
           pagibig: formData.pagibig || null,
           philhealth: formData.philhealth || null,
@@ -275,6 +281,7 @@ export function UserManagementPage() {
           department: formData.department || null,
           role: formData.role,
           shift_id: formData.shift_id || null,
+          is_active: formData.is_active,
           sss: formData.sss || null,
           pagibig: formData.pagibig || null,
           philhealth: formData.philhealth || null,
@@ -461,6 +468,7 @@ export function UserManagementPage() {
                   <TableHead>Department</TableHead>
                   <TableHead>Role</TableHead>
                   <TableHead>Shift</TableHead>
+                  <TableHead>Status</TableHead>
                   <TableHead>SSS</TableHead>
                   <TableHead>Pag-IBIG</TableHead>
                   <TableHead>PhilHealth</TableHead>
@@ -472,13 +480,13 @@ export function UserManagementPage() {
               <TableBody>
                 {isPageLoading ? (
                   <TableRow>
-                    <TableCell colSpan={10} className="text-center text-neutral-500 py-8">
+                    <TableCell colSpan={11} className="text-center text-neutral-500 py-8">
                       Loading users...
                     </TableCell>
                   </TableRow>
                 ) : filteredUsers.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={10} className="text-center text-neutral-500 py-8">
+                    <TableCell colSpan={11} className="text-center text-neutral-500 py-8">
                       {searchQuery
                         ? "No users found matching your search"
                         : "No users found"}
@@ -492,6 +500,17 @@ export function UserManagementPage() {
                       <TableCell>{user.department || "-"}</TableCell>
                       <TableCell className="capitalize">{user.role || "-"}</TableCell>
                       <TableCell>{(user as any).shift_name || "-"}</TableCell>
+                      <TableCell>
+                        <span
+                          className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${
+                            user.is_active === false
+                              ? "bg-neutral-100 text-neutral-600"
+                              : "bg-emerald-50 text-emerald-700"
+                          }`}
+                        >
+                          {user.is_active === false ? "Inactive" : "Active"}
+                        </span>
+                      </TableCell>
                       <TableCell>{user.sss || "-"}</TableCell>
                       <TableCell>{user.pagibig || "-"}</TableCell>
                       <TableCell>{user.philhealth || "-"}</TableCell>
@@ -647,6 +666,21 @@ export function UserManagementPage() {
             {shift.start_time?.slice(0, 5)} - {shift.end_time?.slice(0, 5)}
           </option>
         ))}
+      </Select>
+
+      <Select
+        label="User Status"
+        value={formData.is_active ? "active" : "inactive"}
+        onChange={(e) =>
+          setFormData((prev) => ({
+            ...prev,
+            is_active: e.target.value === "active",
+          }))
+        }
+        disabled={isLoading}
+      >
+        <option value="active">Active</option>
+        <option value="inactive">Inactive</option>
       </Select>
 
       <Input
