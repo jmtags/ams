@@ -56,15 +56,20 @@ type DashboardAttendanceRow = AttendanceRecord & {
   leaveRequestId?: string | null
 }
 
-type AttendanceHeatmapDay = {
+type AttendanceHeatmapCell = {
   date: string
-  dayIndex: number
   title: string
   className: string
-  monthLabel?: string
+  label: string
 }
 
-const dayLabels = ["", "Mon", "", "Wed", "", "Fri", ""]
+type AttendanceHeatmapRow = {
+  userId: string
+  name: string
+  department: string
+  locationId: string | null
+  cells: AttendanceHeatmapCell[]
+}
 
 const presentStatuses = new Set([
   "present",
@@ -469,95 +474,74 @@ export function AdminDashboardPage() {
   }
 
   const attendanceHeatmap = useMemo(() => {
-    const recordsByDate = new Map<string, DashboardAttendanceRow[]>()
+    const recordsByUserDate = new Map<string, DashboardAttendanceRow>()
 
     filteredAttendance.forEach((record) => {
-      if (!record.date) return
-      const existing = recordsByDate.get(record.date) ?? []
-      existing.push(record)
-      recordsByDate.set(record.date, existing)
+      if (!record.userId || !record.date) return
+      recordsByUserDate.set(`${record.userId}-${record.date}`, record)
     })
 
     const dates = getDateRange(startDate, endDate)
-    const firstDayOffset = dates[0]?.getDay() ?? 0
-    const cells: AttendanceHeatmapDay[] = []
+    const dateColumns = dates.map((date) => ({
+      key: formatDateKey(date),
+      label: format(date, "d"),
+      weekday: format(date, "EEE"),
+      month: format(date, "MMM"),
+      fullLabel: format(date, "MMM d, yyyy"),
+    }))
 
-    for (let index = 0; index < firstDayOffset; index += 1) {
-      cells.push({
-        date: `empty-start-${index}`,
-        dayIndex: index,
-        title: "",
-        className: "bg-transparent",
+    const rows: AttendanceHeatmapRow[] = filteredSummaryRows.map((employee) => {
+      const cells = dateColumns.map((date) => {
+        const record = recordsByUserDate.get(`${employee.userId}-${date.key}`)
+        const status = record?.status ?? ""
+        let className = "bg-neutral-100 text-neutral-400 border-neutral-200"
+        let label = "-"
+
+        if (presentStatuses.has(status)) {
+          className = "bg-emerald-600 text-white border-emerald-700"
+          label = "P"
+        } else if (lateStatuses.has(status)) {
+          className = "bg-amber-400 text-amber-950 border-amber-500"
+          label = "L"
+        } else if (status === "absent") {
+          className = "bg-red-500 text-white border-red-600"
+          label = "A"
+        } else if (status === "approved_leave") {
+          className = "bg-cyan-400 text-cyan-950 border-cyan-500"
+          label = "LV"
+        } else if (holidayStatuses.has(status)) {
+          className = "bg-sky-300 text-sky-950 border-sky-400"
+          label = "H"
+        } else if (status === "restday") {
+          className = "bg-slate-300 text-slate-800 border-slate-400"
+          label = "R"
+        }
+
+        return {
+          date: date.key,
+          title: record
+            ? `${employee.name} | ${date.fullLabel} | ${formatStatusLabel(status)}`
+            : `${employee.name} | ${date.fullLabel} | No record`,
+          className,
+          label,
+        }
       })
-    }
 
-    dates.forEach((date, index) => {
-      const dateKey = formatDateKey(date)
-      const records = recordsByDate.get(dateKey) ?? []
-      const presentCount = records.filter((record) =>
-        presentStatuses.has(record.status)
-      ).length
-      const lateCount = records.filter((record) =>
-        lateStatuses.has(record.status)
-      ).length
-      const absentCount = records.filter((record) => record.status === "absent")
-        .length
-      const leaveCount = records.filter(
-        (record) => record.status === "approved_leave"
-      ).length
-      const holidayCount = records.filter((record) =>
-        holidayStatuses.has(record.status)
-      ).length
-      const restDayCount = records.filter((record) => record.status === "restday")
-        .length
-      const totalCount = records.length
-      const attendedCount = presentCount + lateCount
-      const attendanceRate = totalCount > 0 ? attendedCount / totalCount : 0
-      const absentRate = totalCount > 0 ? absentCount / totalCount : 0
-      const lateRate = totalCount > 0 ? lateCount / totalCount : 0
-
-      let className = "bg-neutral-200"
-
-      if (totalCount === 0) {
-        className = "bg-neutral-200"
-      } else if (absentRate >= 0.25) {
-        className = "bg-red-500"
-      } else if (lateRate >= 0.25) {
-        className = "bg-amber-400"
-      } else if (attendanceRate >= 0.9) {
-        className = "bg-emerald-600"
-      } else if (attendanceRate >= 0.7) {
-        className = "bg-emerald-500"
-      } else if (attendanceRate > 0) {
-        className = "bg-lime-400"
-      } else if (leaveCount > 0) {
-        className = "bg-cyan-400"
-      } else if (holidayCount > 0 || restDayCount > 0) {
-        className = "bg-sky-300"
+      return {
+        userId: employee.userId,
+        name: employee.name,
+        department: employee.department,
+        locationId: employee.locationId,
+        cells,
       }
-
-      cells.push({
-        date: dateKey,
-        dayIndex: date.getDay(),
-        title: `${format(date, "MMM d, yyyy")}: ${totalCount} record${
-          totalCount === 1 ? "" : "s"
-        } | Present ${presentCount}, Late ${lateCount}, Absent ${absentCount}, Leave ${leaveCount}, Holiday/Rest ${holidayCount + restDayCount}`,
-        className,
-        monthLabel:
-          date.getDate() <= 7 && (index === 0 || date.getDate() === 1)
-            ? format(date, "MMM")
-            : undefined,
-      })
     })
 
-    const weekCount = Math.max(1, Math.ceil(cells.length / 7))
-
     return {
-      cells,
-      weekCount,
-      hasRecords: filteredAttendance.length > 0,
+      dateColumns,
+      rows,
+      hasRows: rows.length > 0 && dateColumns.length > 0,
     }
-  }, [filteredAttendance, startDate, endDate])
+  }, [filteredAttendance, filteredSummaryRows, startDate, endDate])
 
   if (isLoading) {
     return (
@@ -627,66 +611,81 @@ export function AdminDashboardPage() {
           <CardHeader>
             <CardTitle>Attendance Heatmap</CardTitle>
             <CardDescription>
-              Daily attendance health based on filtered records
+              Employee rows by filtered date columns
             </CardDescription>
           </CardHeader>
 
           <CardContent>
-            {!attendanceHeatmap.hasRecords ? (
+            {!attendanceHeatmap.hasRows ? (
               <div className="h-[220px] flex items-center justify-center text-neutral-500">
                 No attendance data available for the selected filters.
               </div>
             ) : (
               <div className="space-y-4">
-                <div className="overflow-x-auto pb-2">
-                  <div
-                    className="grid gap-1 min-w-max"
-                    style={{
-                      gridTemplateColumns: `32px repeat(${attendanceHeatmap.weekCount}, 14px)`,
-                      gridTemplateRows: "20px repeat(7, 14px)",
-                    }}
-                  >
-                    <div />
-                    {Array.from({ length: attendanceHeatmap.weekCount }).map(
-                      (_, weekIndex) => {
-                        const monthLabel = attendanceHeatmap.cells.find(
-                          (cell, cellIndex) =>
-                            Math.floor(cellIndex / 7) === weekIndex &&
-                            cell.monthLabel
-                        )?.monthLabel
-
-                        return (
-                          <div
-                            key={`month-${weekIndex}`}
-                            className="text-[10px] leading-none text-neutral-500"
-                          >
-                            {monthLabel}
-                          </div>
-                        )
-                      }
-                    )}
-
-                    {dayLabels.map((label, index) => (
+                <div className="max-h-[420px] overflow-auto rounded border">
+                  <div className="min-w-max">
+                    <div
+                      className="grid border-b bg-white"
+                      style={{
+                        gridTemplateColumns: `220px repeat(${attendanceHeatmap.dateColumns.length}, 38px)`,
+                      }}
+                    >
                       <div
-                        key={`day-${index}`}
-                        className="text-[10px] leading-[14px] text-neutral-500"
-                        style={{ gridColumn: 1, gridRow: index + 2 }}
+                        className="sticky left-0 z-20 border-r bg-white px-3 py-2 text-xs font-medium text-neutral-600"
                       >
-                        {label}
+                        Employee
                       </div>
-                    ))}
+                      {attendanceHeatmap.dateColumns.map((date) => (
+                        <div
+                          key={date.key}
+                          title={date.fullLabel}
+                          className="border-r px-1 py-1 text-center text-[10px] leading-tight text-neutral-600"
+                        >
+                          <div className="font-medium">{date.label}</div>
+                          <div>{date.weekday}</div>
+                          {date.label === "1" && (
+                            <div className="text-[9px] text-neutral-400">
+                              {date.month}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
 
-                    {attendanceHeatmap.cells.map((cell, index) => (
+                    {attendanceHeatmap.rows.map((row) => (
                       <div
-                        key={cell.date}
-                        title={cell.title}
-                        aria-label={cell.title || undefined}
-                        className={`h-3.5 w-3.5 rounded-sm ${cell.className}`}
+                        key={row.userId}
+                        className="grid border-b last:border-b-0"
                         style={{
-                          gridColumn: Math.floor(index / 7) + 2,
-                          gridRow: cell.dayIndex + 2,
+                          gridTemplateColumns: `220px repeat(${attendanceHeatmap.dateColumns.length}, 38px)`,
                         }}
-                      />
+                      >
+                        <div
+                          className="sticky left-0 z-10 border-r bg-white px-3 py-2"
+                          title={`${row.name} | ${row.department || "-"} | ${getLocationName(row.locationId)}`}
+                        >
+                          <div className="truncate text-sm font-medium text-neutral-900">
+                            {row.name}
+                          </div>
+                          <div className="truncate text-[11px] text-neutral-500">
+                            {row.department || "-"}
+                          </div>
+                        </div>
+                        {row.cells.map((cell) => (
+                          <div
+                            key={`${row.userId}-${cell.date}`}
+                            className="flex items-center justify-center border-r px-1 py-1"
+                          >
+                            <div
+                              title={cell.title}
+                              aria-label={cell.title}
+                              className={`flex h-7 w-7 items-center justify-center rounded-sm border text-[10px] font-semibold ${cell.className}`}
+                            >
+                              {cell.label}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     ))}
                   </div>
                 </div>
@@ -694,19 +693,15 @@ export function AdminDashboardPage() {
                 <div className="flex flex-wrap items-center gap-4 text-xs text-neutral-600">
                   <div className="flex items-center gap-2">
                     <span className="h-3 w-3 rounded-sm bg-emerald-600" />
-                    High attendance
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="h-3 w-3 rounded-sm bg-lime-400" />
-                    Partial attendance
+                    Present
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="h-3 w-3 rounded-sm bg-amber-400" />
-                    Late trend
+                    Late
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="h-3 w-3 rounded-sm bg-red-500" />
-                    Absence trend
+                    Absent
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="h-3 w-3 rounded-sm bg-cyan-400" />
@@ -714,10 +709,14 @@ export function AdminDashboardPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="h-3 w-3 rounded-sm bg-sky-300" />
-                    Holiday or rest day
+                    Holiday
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="h-3 w-3 rounded-sm bg-neutral-200" />
+                    <span className="h-3 w-3 rounded-sm bg-slate-300" />
+                    Rest day
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="h-3 w-3 rounded-sm bg-neutral-100 ring-1 ring-neutral-200" />
                     No record
                   </div>
                 </div>
