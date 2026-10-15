@@ -86,6 +86,9 @@ function getRenderedOvertimeMinutes(row: OvertimeApprovalRow) {
 export function OvertimeApprovalsPage() {
   const [rows, setRows] = useState<OvertimeApprovalRow[]>([]);
   const [filter, setFilter] = useState<FilterStatus>("pending");
+  const [employeeSearch, setEmployeeSearch] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [selectedRow, setSelectedRow] = useState<OvertimeApprovalRow | null>(
     null
   );
@@ -115,10 +118,21 @@ export function OvertimeApprovalsPage() {
     loadRows();
   }, []);
 
+  const invalidDateRange = Boolean(dateFrom && dateTo && dateFrom > dateTo);
+  const matchingRows = useMemo(() => {
+    if (invalidDateRange) return [];
+    const search = employeeSearch.trim().toLocaleLowerCase();
+    return rows.filter(row =>
+      (!search || (row.users?.name ?? "").toLocaleLowerCase().includes(search)) &&
+      (!dateFrom || row.date >= dateFrom) &&
+      (!dateTo || row.date <= dateTo)
+    );
+  }, [rows, employeeSearch, dateFrom, dateTo, invalidDateRange]);
+
   const filteredRows = useMemo(() => {
-    if (filter === "all") return rows;
-    return rows.filter((row) => row.overtime_status === filter);
-  }, [filter, rows]);
+    if (filter === "all") return matchingRows;
+    return matchingRows.filter((row) => row.overtime_status === filter);
+  }, [filter, matchingRows]);
 
   const openDialog = (row: OvertimeApprovalRow, action: DialogAction) => {
     const renderedOvertimeMinutes = getRenderedOvertimeMinutes(row);
@@ -189,7 +203,7 @@ export function OvertimeApprovalsPage() {
     }
   };
 
-  const pendingCount = rows.filter((row) => row.overtime_status === "pending")
+  const pendingCount = matchingRows.filter((row) => row.overtime_status === "pending")
     .length;
 
   return (
@@ -218,6 +232,66 @@ export function OvertimeApprovalsPage() {
           </div>
         </div>
 
+        <Card>
+          <CardContent className="pt-6 space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+              <div className="space-y-2">
+                <Label htmlFor="ot-employee-search">Employee name</Label>
+                <Input
+                  id="ot-employee-search"
+                  type="search"
+                  placeholder="Search employee name..."
+                  value={employeeSearch}
+                  onChange={event => setEmployeeSearch(event.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="ot-date-from">From date</Label>
+                <Input
+                  id="ot-date-from"
+                  type="date"
+                  value={dateFrom}
+                  max={dateTo || undefined}
+                  aria-invalid={invalidDateRange}
+                  aria-describedby={invalidDateRange ? "ot-date-error" : undefined}
+                  onChange={event => setDateFrom(event.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="ot-date-to">To date</Label>
+                <Input
+                  id="ot-date-to"
+                  type="date"
+                  value={dateTo}
+                  min={dateFrom || undefined}
+                  aria-invalid={invalidDateRange}
+                  aria-describedby={invalidDateRange ? "ot-date-error" : undefined}
+                  onChange={event => setDateTo(event.target.value)}
+                />
+              </div>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setEmployeeSearch("");
+                  setDateFrom("");
+                  setDateTo("");
+                }}
+                disabled={!employeeSearch && !dateFrom && !dateTo}
+              >
+                Clear filters
+              </Button>
+            </div>
+            {invalidDateRange && (
+              <p id="ot-date-error" role="alert" className="text-sm text-red-600">
+                From date must be on or before To date.
+              </p>
+            )}
+            <p className="text-sm text-neutral-500" aria-live="polite">
+              {loading ? "Loading overtime records..." : `Showing ${filteredRows.length} overtime record${filteredRows.length === 1 ? "" : "s"}.`}
+            </p>
+          </CardContent>
+        </Card>
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Card>
             <CardContent className="pt-6">
@@ -229,7 +303,7 @@ export function OvertimeApprovalsPage() {
             <CardContent className="pt-6">
               <p className="text-sm text-neutral-500">Approved Minutes</p>
               <p className="text-2xl font-bold mt-2">
-                {rows.reduce(
+                {matchingRows.reduce(
                   (sum, row) =>
                     row.overtime_status === "approved"
                       ? sum + row.approved_overtime_minutes
@@ -243,7 +317,7 @@ export function OvertimeApprovalsPage() {
             <CardContent className="pt-6">
               <p className="text-sm text-neutral-500">Rendered OT Minutes</p>
               <p className="text-2xl font-bold mt-2">
-                {rows.reduce(
+                {matchingRows.reduce(
                   (sum, row) => sum + getRenderedOvertimeMinutes(row),
                   0
                 )}
@@ -285,7 +359,7 @@ export function OvertimeApprovalsPage() {
                       colSpan={7}
                       className="text-center text-neutral-500 py-8"
                     >
-                      No overtime records found.
+                      No overtime records match the selected filters.
                     </TableCell>
                   </TableRow>
                 ) : (

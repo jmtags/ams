@@ -28,39 +28,47 @@ export type OvertimeApprovalRow = {
 
 export const overtimeApprovalService = {
   async getOvertimeRows(): Promise<OvertimeApprovalRow[]> {
-    const { data, error } = await supabase
-      .from("attendance")
-      .select(`
-        id,
-        user_id,
-        date,
-        clock_in,
-        clock_out,
-        scheduled_end,
-        minutes_overtime,
-        approved_overtime_minutes,
-        overtime_status,
-        remarks,
-        users:user_id (
+    // Fetch every page so name/date searches also include older records.
+    const rows: any[] = [];
+    for (let offset = 0; ; offset += 500) {
+      const { data, error } = await supabase
+        .from("attendance")
+        .select(`
           id,
-          name,
-          email,
-          department,
-          employee_compensation (employment_type, effective_from, effective_to, is_active)
-        ),
-        shifts:shift_id (
-          id,
-          name,
-          overtime_after_minutes
-        )
-      `)
-      .or("is_overtime.eq.true,minutes_overtime.gt.0,approved_overtime_minutes.gt.0")
-      .order("date", { ascending: false })
-      .order("created_at", { ascending: false });
+          user_id,
+          date,
+          clock_in,
+          clock_out,
+          scheduled_end,
+          minutes_overtime,
+          approved_overtime_minutes,
+          overtime_status,
+          remarks,
+          users:user_id (
+            id,
+            name,
+            email,
+            department,
+            employee_compensation (employment_type, effective_from, effective_to, is_active)
+          ),
+          shifts:shift_id (
+            id,
+            name,
+            overtime_after_minutes
+          )
+        `)
+        .or("is_overtime.eq.true,minutes_overtime.gt.0,approved_overtime_minutes.gt.0")
+        .order("date", { ascending: false })
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: false })
+        .range(offset, offset + 499);
 
-    if (error) throw error;
+      if (error) throw error;
+      rows.push(...(data ?? []));
+      if ((data?.length ?? 0) < 500) break;
+    }
 
-    return (data ?? []).map((row: any) => ({
+    return rows.map((row: any) => ({
       ...row,
       employment_type: employmentTypeOnDate(row.users?.employee_compensation ?? [], row.date),
       minutes_overtime: Number(row.minutes_overtime ?? 0),

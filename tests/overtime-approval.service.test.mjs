@@ -10,17 +10,20 @@ function setup(type = 'part_time', options = {}) {
   const db = { from(table) {
     let payload;
     let single = false;
+    let range;
     const query = new Proxy({}, { get(_, method) {
       if (method === 'then') return resolve => {
         if (payload) updates.push({ table, payload });
-        const data = options.data?.[table] ?? (table === 'employee_compensation' ? [compensation]
+        let data = options.data?.[table] ?? (table === 'employee_compensation' ? [compensation]
           : single ? { id: 'attendance', user_id: 'employee', date: '2026-10-01', overtime_status: 'approved', approved_overtime_minutes: 60 }
           : [{ id: 'attendance', date: '2026-10-01', users: { employee_compensation: [compensation] } }]);
+        if (range && Array.isArray(data)) data = data.slice(range[0], range[1] + 1);
         resolve({ data, error: options.errorTable === table ? new Error('Access denied') : null });
       };
       return (...args) => {
         if (method === 'update' || method === 'insert') payload = args[0];
         if (method === 'single') single = true;
+        if (method === 'range') range = args;
         return query;
       };
     } });
@@ -140,4 +143,16 @@ test('approved attendance adjustments preserve part-time punches without creatin
   assert.equal(update.minutes_overtime, 0);
   assert.equal(update.status, 'present');
   assert.equal(update.clock_out, '2026-10-01T10:00:00Z');
+});
+
+test('overtime search receives all records beyond the database default row limit', async () => {
+  const attendance = Array.from({ length: 1201 }, (_, i) => ({
+    id: `attendance-${i}`, date: '2026-10-01', overtime_status: 'pending',
+    users: { name: `Employee ${i}`, employee_compensation: [] },
+  }));
+  const { load } = setup('regular', { data: { attendance } });
+  const rows = await load('overtime-approval.service').overtimeApprovalService.getOvertimeRows();
+  assert.equal(rows.length, 1201);
+  assert.equal(new Set(rows.map(row => row.id)).size, 1201);
+  assert.equal(rows.at(-1).users.name, 'Employee 1200');
 });
