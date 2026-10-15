@@ -1,4 +1,5 @@
 import { supabase } from "../lib/supabase";
+import { overtimeEligibilityService } from "./overtime-eligibility.service";
 
 export const manualAttendanceService = {
   // GET ALL MANUAL ATTENDANCE
@@ -139,6 +140,7 @@ export const manualAttendanceService = {
 
   // CREATE
   createManualAttendance: async (payload: any) => {
+    payload = await overtimeEligibilityService.normalizeAttendance(payload.user_id, payload.date, payload);
     const { data, error } = await supabase
       .from("attendance")
       .insert(payload)
@@ -155,6 +157,7 @@ export const manualAttendanceService = {
 
   // UPDATE
   updateManualAttendance: async (id: string, payload: any) => {
+    payload = await overtimeEligibilityService.normalizeAttendance(payload.user_id, payload.date, payload);
     const { data, error } = await supabase
       .from("attendance")
       .update(payload)

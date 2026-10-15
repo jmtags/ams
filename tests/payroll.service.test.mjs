@@ -188,3 +188,37 @@ test('overnight early departure is deducted from the scheduled end date', async 
   assert.equal(record.undertime_deduction, 100);
   assert.equal(record.net_pay, 700);
 });
+
+for (const overtimeStatus of ['approved', 'pending', 'rejected']) {
+  test(`part-time ${overtimeStatus} OT is paid entirely as ordinary worked hours`, async () => {
+    const { record, items } = await generate({ employmentType: 'part_time', attendance: {
+      status: 'late_overtime', clock_out: '2026-10-01T10:00:00Z',
+      overtime_status: overtimeStatus, approved_overtime_minutes: 60, minutes_overtime: 60,
+    } });
+    assert.equal(record.total_work_minutes, 510);
+    assert.equal(record.basic_pay, 850);
+    assert.equal(record.total_overtime_minutes, 0);
+    assert.equal(record.overtime_pay, 0);
+    assert.equal(record.net_pay, 850);
+    assert.equal(items.some(item => item.item_type === 'overtime_pay'), false);
+  });
+}
+
+test('part-time hours use actual clock-in even inside the full-time grace period', async () => {
+  const { record } = await generate({ employmentType: 'part_time', attendance: {
+    clock_in: '2026-10-01T00:09:00Z',
+  } });
+  assert.equal(record.total_work_minutes, 471);
+  assert.equal(record.basic_pay, 785);
+});
+
+test('rejecting full-time approved OT removes its premium on regeneration', async () => {
+  const { record, items } = await generate({ attendance: {
+    status: 'late_overtime', clock_out: '2026-10-01T10:00:00Z',
+    overtime_status: 'rejected', approved_overtime_minutes: 0, minutes_overtime: 60,
+  } });
+  assert.equal(record.basic_pay, 800);
+  assert.equal(record.overtime_pay, 0);
+  assert.equal(record.net_pay, 750);
+  assert.equal(items.some(item => item.item_type === 'overtime_pay'), false);
+});

@@ -1,4 +1,5 @@
 import { supabase } from "../lib/supabase";
+import { overtimeEligibilityService } from "./overtime-eligibility.service";
 
 function combineDateAndTime(date: string, time: string) {
   if (!date || !time) return null;
@@ -249,7 +250,7 @@ export const attendanceAdjustmentService = {
 
     const { error: attendanceError } = await supabase
       .from("attendance")
-      .update({
+      .update(await overtimeEligibilityService.normalizeAttendance(attendance.user_id, attendanceDate, {
         clock_in: payload.approved_clock_in,
         clock_out: payload.approved_clock_out,
         scheduled_start: scheduledStart,
@@ -260,7 +261,7 @@ export const attendanceAdjustmentService = {
         is_overtime: isOvertime,
         status,
         remarks: updatedRemarks,
-      })
+      }))
       .eq("id", attendance.id);
 
     if (attendanceError) {

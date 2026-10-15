@@ -251,20 +251,6 @@ const diffCompletedMinutes = (
   return Math.max(0, Math.floor((endTime - startTime) / 60000));
 };
 
-const getPayrollClockIn = (row: any) => {
-  if (!row.clock_in || !row.scheduled_start) return row.clock_in;
-
-  const graceMinutes = Number(row.shifts?.grace_minutes ?? 0);
-  if (graceMinutes <= 0) return row.clock_in;
-
-  const lateMinutes = diffCompletedMinutes(row.scheduled_start, row.clock_in);
-  if (lateMinutes > 0 && lateMinutes < graceMinutes) {
-    return row.scheduled_start;
-  }
-
-  return row.clock_in;
-};
-
 const getAttendanceOvertimeMinutes = (row: any) => {
   const overtimeStatus = row.overtime_status ?? "pending";
   const approvedMinutes = Number(row.approved_overtime_minutes ?? 0);
@@ -314,7 +300,7 @@ const getPartTimeBreakMinutes = (elapsedMinutes: number) => {
 };
 
 const getPartTimeAttendanceBreakMinutes = (row: any) =>
-  getPartTimeBreakMinutes(diffMinutes(getPayrollClockIn(row), row.clock_out));
+  getPartTimeBreakMinutes(diffMinutes(row.clock_in, row.clock_out));
 
 const getRegularAttendanceBreakMinutes = (row: any, breakMinutes: number) => {
   if (breakMinutes <= 0) return 0;
@@ -355,14 +341,12 @@ const getAttendanceUndertimeMinutes = (
 };
 
 const getPartTimeRegularWorkMinutes = (row: any) => {
-  const elapsedMinutes = diffMinutes(getPayrollClockIn(row), row.clock_out);
+  const elapsedMinutes = diffMinutes(row.clock_in, row.clock_out);
   if (elapsedMinutes <= 0) return 0;
 
   return Math.max(
     0,
-    elapsedMinutes -
-      getPartTimeBreakMinutes(elapsedMinutes) -
-      Math.max(0, getAttendanceOvertimeMinutes(row))
+    elapsedMinutes - getPartTimeBreakMinutes(elapsedMinutes)
   );
 };
 
@@ -884,7 +868,7 @@ export const payrollService = {
         0
       );
 
-      const overtimeMinutes = userAttendance.reduce(
+      const overtimeMinutes = comp.employment_type === "part_time" ? 0 : userAttendance.reduce(
         (sum, row) => sum + getAttendanceOvertimeMinutes(row),
         0
       );

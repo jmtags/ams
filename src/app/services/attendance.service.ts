@@ -1,4 +1,5 @@
 import { supabase } from "../lib/supabase";
+import { overtimeEligibilityService } from "./overtime-eligibility.service";
 
 export type TodayOverview = {
   date: string;
@@ -409,6 +410,7 @@ export const attendanceService = {
         `
         id,
         user_id,
+        date,
         scheduled_end,
         shift_id,
         clock_in,
@@ -465,8 +467,9 @@ export const attendanceService = {
       scheduledEnd.getTime() + (shift.overtime_after_minutes || 0) * 60000
     );
 
-    const isOvertime = now > overtimeThreshold;
-    const minutesOvertime = isOvertime ? diffMinutes(scheduledEnd, now) : 0;
+    const employmentType = await overtimeEligibilityService.getEmploymentType(record.user_id, record.date);
+    const isOvertime = employmentType !== "part_time" && now > overtimeThreshold;
+    const minutesOvertime = isOvertime ? diffMinutes(now, scheduledEnd) : 0;
 
     const status = resolveAttendanceStatus({
       worked: true,
@@ -492,6 +495,9 @@ export const attendanceService = {
         status,
         is_overtime: isOvertime,
         minutes_overtime: minutesOvertime,
+        ...(employmentType === "part_time" ? {
+          approved_overtime_minutes: 0, overtime_status: "rejected",
+        } : {}),
         remarks: remarks || null,
       })
       .eq("id", recordId)

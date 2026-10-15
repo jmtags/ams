@@ -150,6 +150,9 @@ export function OvertimeApprovalsPage() {
 
     try {
       if (dialogAction === "approve") {
+        if (selectedRow.employment_type === "part_time") {
+          throw new Error("Part-time employees are paid for actual hours and are not eligible for overtime.");
+        }
         const renderedOvertimeMinutes = getRenderedOvertimeMinutes(selectedRow);
         const minutes = Number(approvedMinutes);
         if (!Number.isFinite(minutes) || minutes <= 0) {
@@ -196,7 +199,7 @@ export function OvertimeApprovalsPage() {
           <div>
             <h1 className="text-neutral-900 mb-1">Overtime Approvals</h1>
             <p className="text-neutral-600">
-              Review rendered overtime before it is included in payroll.
+              Review overtime for full-time employees. Part-time employees are paid for actual hours.
             </p>
           </div>
 
@@ -292,6 +295,9 @@ export function OvertimeApprovalsPage() {
                         <div className="font-medium">
                           {row.users?.name ?? "-"}
                         </div>
+                        {row.employment_type === "part_time" && (
+                          <Badge variant="secondary">Part-time (No OT)</Badge>
+                        )}
                         <div className="text-xs text-neutral-500">
                           {row.users?.department ?? row.users?.email ?? "-"}
                         </div>
@@ -326,24 +332,29 @@ export function OvertimeApprovalsPage() {
                             <Eye className="h-4 w-4" />
                           </Button>
 
-                          {row.overtime_status === "pending" ? (
-                            <>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => openDialog(row, "approve")}
-                              >
-                                <Check className="h-4 w-4 text-green-600" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => openDialog(row, "reject")}
-                              >
-                                <X className="h-4 w-4 text-red-600" />
-                              </Button>
-                            </>
-                          ) : null}
+                          {row.overtime_status === "pending" && row.employment_type !== "part_time" && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              title="Approve overtime"
+                              aria-label="Approve overtime"
+                              onClick={() => openDialog(row, "approve")}
+                            >
+                              <Check className="h-4 w-4 text-green-600" />
+                            </Button>
+                          )}
+                          {(row.overtime_status === "pending" || row.overtime_status === "approved") && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              title={row.overtime_status === "approved" ? "Reject approved overtime" : "Reject overtime"}
+                              aria-label={row.overtime_status === "approved" ? "Reject approved overtime" : "Reject overtime"}
+                              onClick={() => openDialog(row, "reject")}
+                            >
+                              <X className="h-4 w-4 text-red-600" />
+                              {row.overtime_status === "approved" ? "Reject approved OT" : "Reject"}
+                            </Button>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -365,12 +376,14 @@ export function OvertimeApprovalsPage() {
               {dialogAction === "approve"
                 ? "Approve Overtime"
                 : dialogAction === "reject"
-                ? "Reject Overtime"
+                ? selectedRow?.overtime_status === "approved" ? "Reject Approved Overtime" : "Reject Overtime"
                 : "Overtime Details"}
             </DialogTitle>
             <DialogDescription>
               {dialogAction === "view"
                 ? "Review the overtime record details."
+                : dialogAction === "reject" && selectedRow?.overtime_status === "approved"
+                ? "This clears the approved overtime minutes. Regenerate any previously generated payroll to apply the change."
                 : "Confirm how this overtime should be handled for payroll."}
             </DialogDescription>
           </DialogHeader>
@@ -385,6 +398,11 @@ export function OvertimeApprovalsPage() {
 
               {selectedRow ? (
                 <div className="space-y-4">
+                  {selectedRow.employment_type === "part_time" && (
+                    <p className="rounded-lg border bg-neutral-50 p-3 text-sm">
+                      This part-time employee is paid for actual hours and is not eligible for overtime.
+                    </p>
+                  )}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                     <div>
                       <p className="text-neutral-500">Employee</p>

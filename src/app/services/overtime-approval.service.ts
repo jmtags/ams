@@ -1,4 +1,5 @@
 import { supabase } from "../lib/supabase";
+import { employmentTypeOnDate, overtimeEligibilityService, type EmploymentType } from "./overtime-eligibility.service";
 
 export type OvertimeApprovalRow = {
   id: string;
@@ -10,6 +11,7 @@ export type OvertimeApprovalRow = {
   minutes_overtime: number;
   approved_overtime_minutes: number;
   overtime_status: "pending" | "approved" | "rejected";
+  employment_type: EmploymentType;
   remarks: string | null;
   users?: {
     id: string;
@@ -43,7 +45,8 @@ export const overtimeApprovalService = {
           id,
           name,
           email,
-          department
+          department,
+          employee_compensation (employment_type, effective_from, effective_to, is_active)
         ),
         shifts:shift_id (
           id,
@@ -59,6 +62,7 @@ export const overtimeApprovalService = {
 
     return (data ?? []).map((row: any) => ({
       ...row,
+      employment_type: employmentTypeOnDate(row.users?.employee_compensation ?? [], row.date),
       minutes_overtime: Number(row.minutes_overtime ?? 0),
       approved_overtime_minutes: Number(row.approved_overtime_minutes ?? 0),
       overtime_status: row.overtime_status ?? "pending",
@@ -70,6 +74,18 @@ export const overtimeApprovalService = {
     approvedMinutes: number,
     remarks?: string
   ) {
+    const { data: attendance, error: attendanceError } = await supabase
+      .from("attendance")
+      .select("user_id,date")
+      .eq("id", attendanceId)
+      .single();
+    if (attendanceError) throw attendanceError;
+    if (await overtimeEligibilityService.getEmploymentType(attendance.user_id, attendance.date) === "part_time") {
+      throw new Error("Part-time employees are paid for actual hours and are not eligible for overtime.");
+    }
+    if (!Number.isFinite(approvedMinutes) || Math.round(approvedMinutes) <= 0) {
+      throw new Error("Approved overtime minutes must be greater than zero.");
+    }
     const { error } = await supabase
       .from("attendance")
       .update({
