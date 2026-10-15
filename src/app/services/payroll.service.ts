@@ -316,19 +316,10 @@ const getPartTimeBreakMinutes = (elapsedMinutes: number) => {
 const getPartTimeAttendanceBreakMinutes = (row: any) =>
   getPartTimeBreakMinutes(diffMinutes(getPayrollClockIn(row), row.clock_out));
 
-const getAttendanceElapsedMinutes = (row: any) => {
-  const actualMinutes = diffMinutes(getPayrollClockIn(row), row.clock_out);
-  if (actualMinutes > 0) return actualMinutes;
-  if (row.clock_in && !row.clock_out) {
-    return diffMinutes(row.scheduled_start, row.scheduled_end);
-  }
-  return 0;
-};
-
 const getRegularAttendanceBreakMinutes = (row: any, breakMinutes: number) => {
   if (breakMinutes <= 0) return 0;
-  const elapsedMinutes = getAttendanceElapsedMinutes(row);
-  return elapsedMinutes >= 4 * 60 ? breakMinutes : 0;
+  const scheduledMinutes = diffMinutes(row.scheduled_start, row.scheduled_end);
+  return scheduledMinutes >= 4 * 60 ? breakMinutes : 0;
 };
 
 const getRegularAttendanceWorkMinutes = (
@@ -336,15 +327,31 @@ const getRegularAttendanceWorkMinutes = (
   breakMinutes: number,
   maxPaidMinutes: number
 ) => {
-  const elapsedMinutes = getAttendanceElapsedMinutes(row);
-  if (elapsedMinutes <= 0) return 0;
+  // Full-time base pay assumes a completed shift. Qualifying lateness is
+  // deducted separately, and approved overtime is paid separately.
+  const scheduledMinutes = diffMinutes(row.scheduled_start, row.scheduled_end);
+  if (scheduledMinutes <= 0) return maxPaidMinutes;
 
   const paidMinutes =
-    elapsedMinutes -
-    getRegularAttendanceBreakMinutes(row, breakMinutes) -
-    Math.max(0, getAttendanceOvertimeMinutes(row));
+    scheduledMinutes - getRegularAttendanceBreakMinutes(row, breakMinutes);
 
   return Math.max(0, Math.min(maxPaidMinutes, paidMinutes));
+};
+
+const getAttendanceUndertimeMinutes = (
+  row: any,
+  breakMinutes: number,
+  maxPaidMinutes: number
+) => {
+  if (!workedStatuses.includes(row.status) || !row.clock_in || !row.clock_out) {
+    return 0;
+  }
+  if (diffMinutes(row.clock_in, row.clock_out) <= 0) return 0;
+
+  return Math.min(
+    diffCompletedMinutes(row.clock_out, row.scheduled_end),
+    getRegularAttendanceWorkMinutes(row, breakMinutes, maxPaidMinutes)
+  );
 };
 
 const getPartTimeRegularWorkMinutes = (row: any) => {
@@ -849,6 +856,7 @@ export const payrollService = {
 
     const recordsToInsert: any[] = [];
     const holidayPayQuantityByUser = new Map<string, number>();
+    const undertimeByUser = new Map<string, { minutes: number; hourlyRate: number }>();
 
     for (const user of users) {
       const comp = compensationByUser.get(user.id);
@@ -1127,6 +1135,21 @@ export const payrollService = {
         holidayPayQuantityByUser.set(user.id, holidayPayQuantity);
       }
 
+      const undertimeMinutes = employmentType === "regular"
+        ? userAttendance.reduce(
+            (sum, row) => sum + getAttendanceUndertimeMinutes(
+              row, unpaidBreakMinutes, regularPaidMinutesPerDay
+            ),
+            0
+          )
+        : 0;
+      const undertimeHourlyRate =
+        Number(comp.undertime_deduction_rate ?? 0) > 0
+          ? Number(comp.undertime_deduction_rate)
+          : hourlyRate;
+      const undertimeDeduction = round2((undertimeMinutes / 60) * undertimeHourlyRate);
+      undertimeByUser.set(user.id, { minutes: undertimeMinutes, hourlyRate: undertimeHourlyRate });
+
       const lateDeduction =
         employmentType === "regular" ? (lateMinutes / 60) * hourlyRate : 0;
 
@@ -1219,6 +1242,7 @@ export const payrollService = {
 
       const totalDeductions = round2(
         lateDeduction +
+          undertimeDeduction +
           absentDeduction +
           governmentContributions.sssEmployee +
           governmentContributions.pagibigEmployee +
@@ -1253,7 +1277,7 @@ export const payrollService = {
         allowance_pay: round2(allowancePay),
         gross_pay: grossPay,
         late_deduction: round2(lateDeduction),
-        undertime_deduction: 0,
+        undertime_deduction: undertimeDeduction,
         absent_deduction: round2(absentDeduction),
         sss_deduction: governmentContributions.sssEmployee,
         pagibig_deduction: governmentContributions.pagibigEmployee,
@@ -1413,6 +1437,18 @@ export const payrollService = {
           quantity: record.total_late_minutes,
           rate: 1,
           amount: record.late_deduction,
+        });
+      }
+
+      if (Number(record.undertime_deduction ?? 0) > 0) {
+        const undertime = undertimeByUser.get(record.user_id)!;
+        itemsToInsert.push({
+          payroll_record_id: record.id,
+          item_type: "undertime_deduction",
+          description: "Undertime Deduction",
+          quantity: undertime.minutes,
+          rate: undertime.hourlyRate / 60,
+          amount: record.undertime_deduction,
         });
       }
 

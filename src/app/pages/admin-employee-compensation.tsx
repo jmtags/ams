@@ -864,11 +864,12 @@ export function AdminEmployeeCompensationPage() {
 
                     <div>
                       <label className="block text-sm font-medium mb-1">
-                        Undertime Deduction Rate
+                        Undertime Deduction Rate (per hour)
                       </label>
                       <Input
                         type="number"
                         step="0.01"
+                        min="0"
                         value={form.undertime_deduction_rate}
                         onChange={(e) =>
                           setForm((prev) => ({
@@ -877,6 +878,9 @@ export function AdminEmployeeCompensationPage() {
                           }))
                         }
                       />
+                      <p className="mt-1 text-xs text-neutral-500">
+                        Leave at 0 to use the employee's hourly rate.
+                      </p>
                     </div>
 
                     <div>
